@@ -393,8 +393,9 @@ def serve_upload(filename):
 
 if __name__ == '__main__':
     models.init_db()
+    port = getattr(config, 'APP_PORT', 5000)
     print("=" * 50)
     print("晶体材料样品管理系统")
-    print("访问地址: http://127.0.0.1:5000")
+    print(f"访问地址: http://127.0.0.1:{port}")
     print("=" * 50)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=port)

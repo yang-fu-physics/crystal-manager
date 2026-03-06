@@ -13,6 +13,7 @@ import os
 # ============================================================
 LOGIN_PASSWORD = "your-password-here"  # 修改为你自己的密码
 SECRET_KEY = "change-me-to-a-random-string"  # Flask session 密钥
+APP_PORT = 5000  # 服务端口
 
 # ============================================================
 # OpenAI / GPT API 配置 (EDX 照片识别用)
