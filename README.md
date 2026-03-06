@@ -40,6 +40,7 @@ cp config.py.example config.py
 
 ```python
 LOGIN_PASSWORD = "your-password"        # 登录密码
+APP_PORT = 5000                        # 服务端口
 OPENAI_API_KEY = "sk-your-api-key"      # EDX 识别用 API Key
 OPENAI_BASE_URL = "https://api.openai.com/v1/"  # 代理地址
 OPENAI_MODEL = "gpt-4o"                 # 模型名称
