@@ -6,6 +6,7 @@ import sys
 import uuid
 import base64
 import json
+import time
 from flask import Flask, request, jsonify, render_template, send_from_directory, session, redirect, url_for
 from functools import wraps
 
@@ -44,14 +45,40 @@ def login_page():
     return render_template('login.html')
 
 
+# 登录失败记录: {ip: {'count': int, 'locked_until': float}}
+_login_attempts = {}
+LOGIN_MAX_FAILURES = 3
+LOGIN_LOCK_SECONDS = 86400  # 24小时
+
+
 @app.route('/api/login', methods=['POST'])
 def do_login():
+    ip = request.remote_addr or 'unknown'
+    now = time.time()
+
+    # 检查是否被锁定
+    record = _login_attempts.get(ip, {})
+    locked_until = record.get('locked_until', 0)
+    if now < locked_until:
+        remaining = int((locked_until - now) / 3600) + 1
+        return jsonify({'error': f'登录已锁定，请 {remaining} 小时后重试'}), 429
+
     data = request.get_json()
     password = data.get('password', '') if data else ''
+
     if password == config.LOGIN_PASSWORD:
+        _login_attempts.pop(ip, None)  # 登录成功清除记录
         session['logged_in'] = True
         return jsonify({'success': True})
-    return jsonify({'error': '密码错误'}), 403
+
+    # 登录失败
+    count = record.get('count', 0) + 1
+    if count >= LOGIN_MAX_FAILURES:
+        _login_attempts[ip] = {'count': count, 'locked_until': now + LOGIN_LOCK_SECONDS}
+        return jsonify({'error': f'密码错误 {LOGIN_MAX_FAILURES} 次，IP 已被锁定 24 小时'}), 429
+
+    _login_attempts[ip] = {'count': count, 'locked_until': 0}
+    return jsonify({'error': f'密码错误，还剩 {LOGIN_MAX_FAILURES - count} 次机会'}), 403
 
 
 @app.route('/api/logout', methods=['POST'])
