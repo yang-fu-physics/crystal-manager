@@ -174,7 +174,7 @@
                     </h3>
                     <div class="upload-zone" id="photoUploadZone">
                         <input type="file" id="photoInput" multiple accept="image/*" style="display:none">
-                        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
+                        <input type="file" id="cameraInput" capture="environment" style="display:none">
                         <div class="upload-placeholder">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                             <p>拖拽照片到此处，或 <span class="upload-link">点击上传</span></p>
@@ -196,11 +196,15 @@
                     </h3>
                     <div class="upload-zone" id="edxUploadZone">
                         <input type="file" id="edxInput" multiple accept="image/*" style="display:none">
+                        <input type="file" id="edxCameraInput" capture="environment" style="display:none">
                         <div class="upload-placeholder">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                             <p>拖拽 EDX 谱图到此处，或 <span class="upload-link">点击上传</span></p>
                         </div>
                     </div>
+                    <button class="btn-outline btn-sm btn-camera" id="edxCameraBtn" onclick="document.getElementById('edxCameraInput').click()">
+                        📷 拍照上传
+                    </button>
                     <div class="edx-list" id="edxList">
                         <!-- 动态填充 EDX 图+表格 -->
                     </div>

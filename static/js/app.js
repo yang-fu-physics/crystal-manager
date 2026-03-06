@@ -102,13 +102,24 @@ function bindEvents() {
     deleteBtn.addEventListener('click', () => deleteSample());
     copyBtn.addEventListener('click', () => copySample());
 
-    // Camera input (mobile)
+    // Camera input (mobile) - photos
     const cameraInput = document.getElementById('cameraInput');
     if (cameraInput) {
         cameraInput.addEventListener('change', () => {
             if (cameraInput.files.length > 0) {
                 uploadFiles(cameraInput.files, 'photos');
                 cameraInput.value = '';
+            }
+        });
+    }
+
+    // Camera input (mobile) - EDX
+    const edxCameraInput = document.getElementById('edxCameraInput');
+    if (edxCameraInput) {
+        edxCameraInput.addEventListener('change', () => {
+            if (edxCameraInput.files.length > 0) {
+                uploadFiles(edxCameraInput.files, 'edx');
+                edxCameraInput.value = '';
             }
         });
     }
@@ -463,9 +474,9 @@ function addElementRow(element = '', ratio = '', molarMass = '', mass = '', isRe
     tr.innerHTML = `
         <td><input type="text" class="el-symbol" value="${escapeHtml(String(element))}" placeholder="Fe" 
              oninput="onElementInput(this)"></td>
-        <td><input type="number" class="el-ratio" value="${ratio}" placeholder="1" step="any" min="0"></td>
+        <td><input type="number" class="el-ratio" value="${ratio}" placeholder="1" step="0.01" min="0.01" max="150"></td>
         <td><input type="text" class="el-molar readonly-mass" value="${molarMass}" readonly tabindex="-1"></td>
-        <td><input type="number" class="el-mass" value="${mass}" placeholder="—" step="any" min="0"></td>
+        <td><input type="number" class="el-mass" value="${mass}" placeholder="—" step="0.0001" min="0" max="50"></td>
         <td style="text-align:center"><input type="radio" name="refElement" class="ref-radio" ${isRef ? 'checked' : ''}></td>
         <td><button class="element-row-del" onclick="this.closest('tr').remove()">×</button></td>
     `;
