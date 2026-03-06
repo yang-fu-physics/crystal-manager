@@ -1,0 +1,38 @@
+# 个人配置 (含密码和 API Key)
+config.py
+
+# 数据库
+*.db
+
+# 上传的文件
+uploads/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 虚拟环境
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 测试文件
+*.dat
+*.png
+*.jpg
+*.jpeg
+!static/**

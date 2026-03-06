@@ -1,0 +1,38 @@
+# -*- coding: utf-8 -*-
+"""晶体样品管理系统 - 配置文件模板
+
+使用方法：
+1. 复制此文件并重命名为 config.py
+2. 填入你自己的 API Key 和密码
+"""
+
+import os
+
+# ============================================================
+# 登录密码 (局域网安全)
+# ============================================================
+LOGIN_PASSWORD = "your-password-here"  # 修改为你自己的密码
+SECRET_KEY = "change-me-to-a-random-string"  # Flask session 密钥
+
+# ============================================================
+# OpenAI / GPT API 配置 (EDX 照片识别用)
+# ============================================================
+OPENAI_API_KEY = "sk-your-api-key-here"
+OPENAI_BASE_URL = "https://api.openai.com/v1/"  # 代理地址
+OPENAI_MODEL = "gpt-4o"
+
+# ============================================================
+# 数据库 & 文件存储
+# ============================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE_PATH = os.path.join(BASE_DIR, "crystal_samples.db")
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+
+# 上传子目录
+PHOTO_FOLDER = os.path.join(UPLOAD_FOLDER, "photos")
+EDX_FOLDER = os.path.join(UPLOAD_FOLDER, "edx")
+DATA_FOLDER = os.path.join(UPLOAD_FOLDER, "data")
+
+# 确保上传目录存在
+for folder in [PHOTO_FOLDER, EDX_FOLDER, DATA_FOLDER]:
+    os.makedirs(folder, exist_ok=True)
