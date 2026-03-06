@@ -394,8 +394,24 @@ def serve_upload(filename):
 if __name__ == '__main__':
     models.init_db()
     port = getattr(config, 'APP_PORT', 5000)
+
+    # Windows 默认 IPV6_V6ONLY=1，需要 patch 才能让 '::' 同时监听 IPv4
+    import socket as _socket
+    _orig_bind = _socket.socket.bind
+
+    def _dual_stack_bind(self, address):
+        if self.family == _socket.AF_INET6:
+            try:
+                self.setsockopt(_socket.IPPROTO_IPV6, _socket.IPV6_V6ONLY, 0)
+            except (AttributeError, OSError):
+                pass
+        return _orig_bind(self, address)
+
+    _socket.socket.bind = _dual_stack_bind
+
     print("=" * 50)
     print("晶体材料样品管理系统")
-    print(f"访问地址: http://127.0.0.1:{port}")
+    print(f"IPv4 访问: http://127.0.0.1:{port}")
+    print(f"IPv6 访问: http://[::1]:{port}")
     print("=" * 50)
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(debug=True, host='::', port=port)
