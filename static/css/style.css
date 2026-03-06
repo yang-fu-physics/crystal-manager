@@ -963,21 +963,162 @@ input::placeholder, textarea::placeholder {
 .toast.info { background: linear-gradient(135deg, #6c5ce7, #a29bfe); }
 .toast.warning { background: linear-gradient(135deg, #e67e22, #f39c12); }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 768px) {
+/* ============================================================
+   Responsive - Tablet (≤ 900px) & Mobile (≤ 600px)
+   ============================================================ */
+
+/* --- Sidebar toggle button (hidden on desktop) --- */
+.sidebar-toggle {
+    display: none;
+    background: none;
+    border: none;
+    padding: 6px 8px;
+    cursor: pointer;
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+.sidebar-toggle:hover { background: var(--bg-hover); }
+.sidebar-toggle svg { width: 22px; height: 22px; display: block; }
+
+/* Overlay for mobile sidebar */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 149;
+    backdrop-filter: blur(2px);
+}
+.sidebar-overlay.visible { display: block; }
+
+/* --- Tablet (≤ 900px) --- */
+@media (max-width: 900px) {
+    :root {
+        --sidebar-width: 280px;
+    }
+
     .form-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
     }
-    
+
     .edx-content {
-        grid-template-columns: 1fr;
+        grid-template-columns: 200px 1fr;
     }
-    
-    .sidebar {
-        width: 260px;
-        min-width: 260px;
+
+    .sample-form {
+        padding: 16px 20px 80px;
+    }
+
+    .toolbar-right {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    /* Smaller button text on tablet */
+    .btn-primary, .btn-outline, .btn-danger, .btn-accent {
+        padding: 7px 12px;
     }
 }
+
+/* --- Mobile (≤ 600px) --- */
+@media (max-width: 600px) {
+    :root {
+        --topbar-height: 52px;
+    }
+
+    /* Show sidebar toggle button */
+    .sidebar-toggle { display: flex; align-items: center; }
+
+    /* Top bar becomes more compact */
+    .top-bar { padding: 0 12px; }
+    .top-bar h1 { font-size: 14px; }
+    .logo-icon { font-size: 20px; }
+    .sample-count { display: none; }
+
+    /* Sidebar becomes a slide-in drawer */
+    .sidebar {
+        position: fixed;
+        top: var(--topbar-height);
+        left: 0;
+        bottom: 0;
+        width: 85vw;
+        max-width: 320px;
+        min-width: 0;
+        z-index: 150;
+        transform: translateX(-105%);
+        transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+        box-shadow: var(--shadow-lg);
+    }
+    .sidebar.open { transform: translateX(0); }
+
+    /* Main panel fills full width */
+    .main-panel { width: 100%; }
+
+    /* Form adjustments */
+    .sample-form { padding: 12px 12px 80px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .form-section { padding: 14px 12px; }
+
+    /* Toolbar: title on top row, buttons on second row */
+    .form-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 0;
+    }
+    .toolbar-right {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .toolbar-right .btn-primary,
+    .toolbar-right .btn-outline,
+    .toolbar-right .btn-danger {
+        flex: 1;
+        min-width: 0;
+        font-size: 12px;
+        padding: 8px 6px;
+        justify-content: center;
+    }
+
+    /* Element table: horizontal scroll */
+    .element-calculator { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .element-table { min-width: 500px; }
+    .element-table input { font-size: 12px; padding: 6px 8px; }
+
+    /* EDX layout: stack vertically */
+    .edx-content { grid-template-columns: 1fr; }
+    .edx-card-header { flex-wrap: wrap; gap: 8px; }
+    .edx-card-actions { width: 100%; justify-content: flex-end; }
+
+    /* Photo delete always visible on touch */
+    .photo-item .photo-delete { display: flex; }
+    /* Slightly larger touch targets */
+    .photo-item .photo-delete { width: 30px; height: 30px; font-size: 16px; }
+
+    /* Upload zones: more compact */
+    .upload-zone { padding: 16px 12px; }
+
+    /* Buttons: ensure 44px touch target */
+    .btn-camera, .btn-primary, .btn-outline, .btn-danger, .btn-accent {
+        min-height: 40px;
+    }
+
+    /* Toast: top center on mobile */
+    .toast-container {
+        bottom: auto;
+        top: calc(var(--topbar-height) + 8px);
+        right: 12px;
+        left: 12px;
+    }
+    .toast { max-width: 100%; font-size: 13px; }
+
+    /* File item: allow text to wrap */
+    .file-item { flex-wrap: wrap; gap: 8px; }
+    .file-name { font-size: 12px; word-break: break-all; }
+}
+
 
 /* ---------- Loading spinner ---------- */
 .loading-dot {

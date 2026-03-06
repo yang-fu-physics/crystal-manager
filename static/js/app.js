@@ -157,9 +157,33 @@ function bindEvents() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             if (imageModal.style.display !== 'none') closeModal();
+            closeSidebar();
         }
     });
+
+    // Mobile sidebar toggle
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+            sidebarOverlay.classList.toggle('visible');
+        });
+    }
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', closeSidebar);
+    }
 }
+
+function closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('visible');
+}
+
 
 // ============================================================
 // Sample List
@@ -203,6 +227,7 @@ async function loadSampleList(query = '') {
 async function selectSample(id) {
     currentSampleId = id;
     isNewSample = false;
+    closeSidebar(); // auto-close on mobile
 
     try {
         const resp = await fetch(`/api/samples/${encodeURIComponent(id)}`);
