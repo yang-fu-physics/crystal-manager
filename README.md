@@ -28,14 +28,21 @@
 pip install -r requirements.txt
 ```
 
-### 2. 配置 API（可选）
+### 2. 创建配置文件
 
-编辑 `config.py`，填写 EDX 识别所需的 API 信息：
+复制 `config.py.example` 为 `config.py`，并填入你自己的密码和 API Key：
+
+```bash
+cp config.py.example config.py
+```
+
+然后编辑 `config.py`，修改以下内容：
 
 ```python
-OPENAI_API_KEY = "your-api-key"
-OPENAI_BASE_URL = "https://api.gptgod.online/v1/"  # 代理地址
-OPENAI_MODEL = "gemini-3-pro-all"
+LOGIN_PASSWORD = "your-password"        # 登录密码
+OPENAI_API_KEY = "sk-your-api-key"      # EDX 识别用 API Key
+OPENAI_BASE_URL = "https://api.openai.com/v1/"  # 代理地址
+OPENAI_MODEL = "gpt-4o"                 # 模型名称
 ```
 
 ### 3. 启动
@@ -44,21 +51,22 @@ OPENAI_MODEL = "gemini-3-pro-all"
 python app.py
 ```
 
-访问 http://127.0.0.1:5000
+访问 http://127.0.0.1:5000 ，输入密码登录。
 
 ## 项目结构
 
 ```
 crystal_manager/
 ├── app.py              # Flask 主应用 & API 路由
-├── config.py           # 配置文件 (API Key, 代理, 路径)
+├── config.py.example   # 配置文件模板 (复制为 config.py 使用)
 ├── models.py           # SQLite 数据库操作
 ├── molmass_data.py     # 元素摩尔质量数据
 ├── requirements.txt    # Python 依赖
 ├── templates/
-│   └── index.html      # 前端页面
+│   ├── index.html      # 主页面
+│   └── login.html      # 登录页面
 ├── static/
-│   ├── css/style.css   # 深色主题样式
+│   ├── css/style.css   # 亮色主题样式
 │   └── js/app.js       # 前端逻辑
 └── uploads/            # 上传文件目录 (自动创建)
     ├── photos/
