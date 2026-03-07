@@ -332,6 +332,39 @@ def delete_data_file(file_id):
 
 
 # ============================================================
+# 其他文件 API
+# ============================================================
+
+@app.route('/api/samples/<sample_id>/otherfiles', methods=['POST'])
+def upload_other_file(sample_id):
+    existing = models.get_sample(sample_id)
+    if not existing:
+        return jsonify({'error': '样品不存在'}), 404
+
+    if 'file' not in request.files:
+        return jsonify({'error': '未选择文件'}), 400
+
+    files = request.files.getlist('file')
+    uploaded = []
+    for file in files:
+        if file.filename:
+            ext = os.path.splitext(file.filename)[1]
+            safe_name = f"{uuid.uuid4().hex}{ext}"
+            filepath = os.path.join(config.OTHER_FOLDER, safe_name)
+            file.save(filepath)
+            file_id = models.add_other_file(sample_id, file.filename, filepath)
+            uploaded.append({'id': file_id, 'filename': file.filename, 'filepath': filepath})
+
+    return jsonify(uploaded), 201
+
+
+@app.route('/api/otherfiles/<int:file_id>', methods=['DELETE'])
+def delete_other_file(file_id):
+    models.delete_other_file(file_id)
+    return jsonify({'success': True})
+
+
+# ============================================================
 # 元素质量计算 API
 # ============================================================
 

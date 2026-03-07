@@ -50,6 +50,10 @@ const dataUploadZone = document.getElementById('dataUploadZone');
 const dataInput = document.getElementById('dataInput');
 const dataFileList = document.getElementById('dataFileList');
 
+const otherUploadZone = document.getElementById('otherUploadZone');
+const otherInput = document.getElementById('otherInput');
+const otherFileList = document.getElementById('otherFileList');
+
 // Modal
 const imageModal = document.getElementById('imageModal');
 const modalImage = document.getElementById('modalImage');
@@ -146,6 +150,9 @@ function bindEvents() {
 
     // Data file upload
     setupUploadZone(dataUploadZone, dataInput, (files) => uploadFiles(files, 'datafiles'));
+
+    // Other file upload
+    setupUploadZone(otherUploadZone, otherInput, (files) => uploadFiles(files, 'otherfiles'));
 
     // Modal
     modalCloseBtn.addEventListener('click', closeModal);
@@ -271,6 +278,7 @@ function createNewSample() {
     photoGrid.innerHTML = '';
     edxList.innerHTML = '';
     dataFileList.innerHTML = '';
+    otherFileList.innerHTML = '';
 
     // 默认添加两行元素
     addElementRow();
@@ -316,6 +324,9 @@ function fillForm(sample) {
 
     // 数据文件
     renderDataFiles(sample.data_files || []);
+
+    // 其他文件
+    renderOtherFiles(sample.other_files || []);
 }
 
 function showForm(title, showDelete, scrollToTop = true) {
@@ -656,7 +667,8 @@ async function uploadFiles(files, type) {
     const urlMap = {
         photos: `/api/samples/${encodeURIComponent(currentSampleId)}/photos`,
         edx: `/api/samples/${encodeURIComponent(currentSampleId)}/edx`,
-        datafiles: `/api/samples/${encodeURIComponent(currentSampleId)}/datafiles`
+        datafiles: `/api/samples/${encodeURIComponent(currentSampleId)}/datafiles`,
+        otherfiles: `/api/samples/${encodeURIComponent(currentSampleId)}/otherfiles`
     };
 
     try {
@@ -794,6 +806,40 @@ function renderDataFiles(files) {
     `).join('');
 }
 
+function renderOtherFiles(files) {
+    if (files.length === 0) {
+        otherFileList.innerHTML = '';
+        return;
+    }
+
+    otherFileList.innerHTML = files.map(f => `
+        <div class="file-item">
+            <div class="file-info">
+                <div class="file-icon">📂</div>
+                <div>
+                    <div class="file-name">${escapeHtml(f.filename)}</div>
+                    <div class="file-date">${formatDate(f.uploaded_at)}</div>
+                </div>
+            </div>
+            <div class="file-actions">
+                <a href="${getUploadUrl(f.filepath)}" download="${escapeHtml(f.filename)}" class="file-action-btn" title="下载">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7,10 12,15 17,10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                </a>
+                <button class="file-action-btn delete" onclick="deleteAttachment('otherfiles', ${f.id})" title="删除">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polyline points="3,6 5,6 21,6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
 // ============================================================
 // EDX Recognition
 // ============================================================
@@ -866,7 +912,8 @@ async function deleteAttachment(type, id) {
     const urlMap = {
         photos: `/api/photos/${id}`,
         edx: `/api/edx/${id}`,
-        datafiles: `/api/datafiles/${id}`
+        datafiles: `/api/datafiles/${id}`,
+        otherfiles: `/api/otherfiles/${id}`
     };
 
     try {

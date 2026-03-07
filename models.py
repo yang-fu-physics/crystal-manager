@@ -62,7 +62,23 @@ def init_db():
             uploaded_at TEXT,
             FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
         );
+
     """)
+
+    # Dynamic migration for other_files (backwards compatibility)
+    try:
+        cursor.execute("SELECT 1 FROM other_files LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("""
+            CREATE TABLE other_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sample_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                filepath TEXT NOT NULL,
+                uploaded_at TEXT,
+                FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
+            )
+        """)
 
     conn.commit()
     conn.close()
@@ -134,6 +150,9 @@ def get_sample(sample_id):
     sample['data_files'] = [dict(r) for r in
                             conn.execute("SELECT * FROM data_files WHERE sample_id = ? ORDER BY id",
                                          (sample_id,)).fetchall()]
+    sample['other_files'] = [dict(r) for r in
+                             conn.execute("SELECT * FROM other_files WHERE sample_id = ? ORDER BY id",
+                                          (sample_id,)).fetchall()]
     conn.close()
     return sample
 
@@ -201,6 +220,7 @@ def delete_sample(sample_id):
     photos = conn.execute("SELECT filepath FROM photos WHERE sample_id = ?", (sample_id,)).fetchall()
     edx_imgs = conn.execute("SELECT filepath FROM edx_images WHERE sample_id = ?", (sample_id,)).fetchall()
     data_files = conn.execute("SELECT filepath FROM data_files WHERE sample_id = ?", (sample_id,)).fetchall()
+    other_files = conn.execute("SELECT filepath FROM other_files WHERE sample_id = ?", (sample_id,)).fetchall()
 
     # 删除数据库记录
     conn.execute("DELETE FROM samples WHERE id = ?", (sample_id,))
@@ -208,7 +228,7 @@ def delete_sample(sample_id):
     conn.close()
 
     # 删除文件
-    for row in list(photos) + list(edx_imgs) + list(data_files):
+    for row in list(photos) + list(edx_imgs) + list(data_files) + list(other_files):
         filepath = row['filepath']
         if os.path.exists(filepath):
             os.remove(filepath)
@@ -295,5 +315,28 @@ def delete_data_file(file_id):
     if row and os.path.exists(row['filepath']):
         os.remove(row['filepath'])
     conn.execute("DELETE FROM data_files WHERE id = ?", (file_id,))
+    conn.commit()
+    conn.close()
+
+
+def add_other_file(sample_id, filename, filepath):
+    now = datetime.now().isoformat()
+    conn = get_db()
+    cursor = conn.execute(
+        "INSERT INTO other_files (sample_id, filename, filepath, uploaded_at) VALUES (?, ?, ?, ?)",
+        (sample_id, filename, filepath, now)
+    )
+    file_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return file_id
+
+
+def delete_other_file(file_id):
+    conn = get_db()
+    row = conn.execute("SELECT filepath FROM other_files WHERE id = ?", (file_id,)).fetchone()
+    if row and os.path.exists(row['filepath']):
+        os.remove(row['filepath'])
+    conn.execute("DELETE FROM other_files WHERE id = ?", (file_id,))
     conn.commit()
     conn.close()
