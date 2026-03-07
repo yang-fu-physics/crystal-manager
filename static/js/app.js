@@ -224,7 +224,7 @@ async function loadSampleList(query = '') {
     }
 }
 
-async function selectSample(id) {
+async function selectSample(id, scrollToTop = true) {
     currentSampleId = id;
     isNewSample = false;
     closeSidebar(); // auto-close on mobile
@@ -236,7 +236,7 @@ async function selectSample(id) {
 
         originalData = JSON.parse(JSON.stringify(sample));
         fillForm(sample);
-        showForm('编辑样品', true);
+        showForm('编辑样品', true, scrollToTop);
         highlightActive(id);
     } catch (e) {
         console.error(e);
@@ -318,7 +318,7 @@ function fillForm(sample) {
     renderDataFiles(sample.data_files || []);
 }
 
-function showForm(title, showDelete) {
+function showForm(title, showDelete, scrollToTop = true) {
     emptyState.style.display = 'none';
     sampleForm.style.display = 'block';
     formTitle.textContent = title;
@@ -326,8 +326,9 @@ function showForm(title, showDelete) {
     copyBtn.style.display = showDelete ? 'inline-flex' : 'none';
     isEditing = true;
 
-    // Scroll to top
-    document.getElementById('mainPanel').scrollTop = 0;
+    if (scrollToTop) {
+        document.getElementById('mainPanel').scrollTop = 0;
+    }
 }
 
 async function saveSample() {
@@ -670,8 +671,8 @@ async function uploadFiles(files, type) {
         }
 
         showToast('上传成功', 'success');
-        // 重新加载样品详情
-        await selectSample(currentSampleId);
+        // 重新加载样品详情，但保持滚动位置
+        await selectSample(currentSampleId, false);
     } catch (e) {
         showToast(e.message, 'error');
     }
@@ -873,8 +874,8 @@ async function deleteAttachment(type, id) {
         if (!resp.ok) throw new Error('删除失败');
 
         showToast('已删除', 'success');
-        // 重新加载
-        if (currentSampleId) await selectSample(currentSampleId);
+        // 重新加载（保持滚动位置）
+        if (currentSampleId) await selectSample(currentSampleId, false);
     } catch (e) {
         showToast(e.message, 'error');
     }
