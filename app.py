@@ -174,13 +174,14 @@ def upload_photo(sample_id):
     if 'file' not in request.files:
         return jsonify({'error': '未选择文件'}), 400
 
+    folder = models.get_sample_subfolder(sample_id, 'photos')
     files = request.files.getlist('file')
     uploaded = []
     for file in files:
         if file.filename:
             ext = os.path.splitext(file.filename)[1]
             safe_name = f"{uuid.uuid4().hex}{ext}"
-            filepath = os.path.join(config.PHOTO_FOLDER, safe_name)
+            filepath = os.path.join(folder, safe_name)
             file.save(filepath)
             photo_id = models.add_photo(sample_id, file.filename, filepath)
             uploaded.append({'id': photo_id, 'filename': file.filename, 'filepath': filepath})
@@ -207,13 +208,14 @@ def upload_edx(sample_id):
     if 'file' not in request.files:
         return jsonify({'error': '未选择文件'}), 400
 
+    folder = models.get_sample_subfolder(sample_id, 'edx')
     files = request.files.getlist('file')
     uploaded = []
     for file in files:
         if file.filename:
             ext = os.path.splitext(file.filename)[1]
             safe_name = f"{uuid.uuid4().hex}{ext}"
-            filepath = os.path.join(config.EDX_FOLDER, safe_name)
+            filepath = os.path.join(folder, safe_name)
             file.save(filepath)
             edx_id = models.add_edx_image(sample_id, file.filename, filepath)
             uploaded.append({'id': edx_id, 'filename': file.filename, 'filepath': filepath})
@@ -311,13 +313,14 @@ def upload_data_file(sample_id):
     if 'file' not in request.files:
         return jsonify({'error': '未选择文件'}), 400
 
+    folder = models.get_sample_subfolder(sample_id, 'data')
     files = request.files.getlist('file')
     uploaded = []
     for file in files:
         if file.filename:
             ext = os.path.splitext(file.filename)[1]
             safe_name = f"{uuid.uuid4().hex}{ext}"
-            filepath = os.path.join(config.DATA_FOLDER, safe_name)
+            filepath = os.path.join(folder, safe_name)
             file.save(filepath)
             file_id = models.add_data_file(sample_id, file.filename, filepath)
             uploaded.append({'id': file_id, 'filename': file.filename, 'filepath': filepath})
@@ -344,13 +347,14 @@ def upload_other_file(sample_id):
     if 'file' not in request.files:
         return jsonify({'error': '未选择文件'}), 400
 
+    folder = models.get_sample_subfolder(sample_id, 'others')
     files = request.files.getlist('file')
     uploaded = []
     for file in files:
         if file.filename:
             ext = os.path.splitext(file.filename)[1]
             safe_name = f"{uuid.uuid4().hex}{ext}"
-            filepath = os.path.join(config.OTHER_FOLDER, safe_name)
+            filepath = os.path.join(folder, safe_name)
             file.save(filepath)
             file_id = models.add_other_file(sample_id, file.filename, filepath)
             uploaded.append({'id': file_id, 'filename': file.filename, 'filepath': filepath})

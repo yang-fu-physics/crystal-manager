@@ -4,6 +4,7 @@
 import sqlite3
 import json
 import os
+import shutil
 from datetime import datetime
 import config
 
@@ -82,6 +83,14 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+
+def get_sample_subfolder(sample_id: str, subtype: str) -> str:
+    """Return (and create) uploads/{sample_id}/{subtype}/ directory."""
+    safe_id = "".join(c if (c.isalnum() or c in '-_.') else '_' for c in sample_id)
+    folder = os.path.join(config.UPLOAD_FOLDER, safe_id, subtype)
+    os.makedirs(folder, exist_ok=True)
+    return folder
 
 
 # ============================================================
@@ -227,11 +236,17 @@ def delete_sample(sample_id):
     conn.commit()
     conn.close()
 
-    # 删除文件
-    for row in list(photos) + list(edx_imgs) + list(data_files) + list(other_files):
-        filepath = row['filepath']
-        if os.path.exists(filepath):
-            os.remove(filepath)
+    # 删除文件 —— 先尝试删除整个样品文件夹
+    safe_id = "".join(c if (c.isalnum() or c in '-_.') else '_' for c in sample_id)
+    sample_folder = os.path.join(config.UPLOAD_FOLDER, safe_id)
+    if os.path.isdir(sample_folder):
+        shutil.rmtree(sample_folder, ignore_errors=True)
+    else:
+        # Fallback: delete individual files (legacy flat structure)
+        for row in list(photos) + list(edx_imgs) + list(data_files) + list(other_files):
+            filepath = row['filepath']
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
     return True
 
