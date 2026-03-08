@@ -14,6 +14,7 @@ from functools import wraps
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config
 import models
+import backup as _backup_module
 
 # 从上级目录导入元素摩尔质量表
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -23,6 +24,13 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max upload
 app.secret_key = config.SECRET_KEY
 
+# 配置日志输出
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
 
 # ============================================================
 # 登录验证
@@ -457,6 +465,9 @@ def serve_upload(filename):
 
 if __name__ == '__main__':
     models.init_db()
+    # 启动定时备份调度器
+    _backup_module.start_scheduler()
+
     port = getattr(config, 'APP_PORT', 5000)
 
     # Windows 默认 IPV6_V6ONLY=1，需要 patch 才能让 '::' 同时监听 IPv4
