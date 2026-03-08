@@ -7,9 +7,11 @@
 - **样品管理** — 新建、查看、编辑、删除、搜索样品
 - **基本信息** — 样品编号、目标产物、成功/失败、生长流程、结果、备注
 - **元素质量计算** — 输入元素摩尔比 + 某元素质量，自动计算其余元素称量质量
-- **实物照片** — 多张照片上传、缩略图网格、点击放大预览
+- **实物照片** — 多张照片上传（支持拍照）、缩略图网格、点击放大预览
 - **EDX 能谱分析** — 上传 EDX 谱图 → 调用 GPT Vision API 自动识别元素成分
-- **数据文件** — 上传/下载/删除 `.dat` 等数据文件
+- **数据文件** — 上传/下载/删除 `.dat/.csv/.txt` 等数据文件
+- **其他文件** — 不限格式的附件上传
+- **自动备份** — 启动时立即备份 + 定时增量备份，命令行恢复
 
 ## 技术栈
 
@@ -61,6 +63,9 @@ crystal_manager/
 ├── app.py              # Flask 主应用 & API 路由
 ├── config.py.example   # 配置文件模板 (复制为 config.py 使用)
 ├── models.py           # SQLite 数据库操作
+├── backup.py           # 增量备份 & 定时调度器
+├── restore_backup.py   # 命令行备份恢复工具
+├── migrate_storage.py  # 文件存储结构迁移工具
 ├── molmass_data.py     # 元素摩尔质量数据
 ├── requirements.txt    # Python 依赖
 ├── templates/
@@ -69,10 +74,18 @@ crystal_manager/
 ├── static/
 │   ├── css/style.css   # 亮色主题样式
 │   └── js/app.js       # 前端逻辑
-└── uploads/            # 上传文件目录 (自动创建)
-    ├── photos/
-    ├── edx/
-    └── data/
+├── uploads/            # 上传文件目录 (按样品编号组织)
+│   └── <样品编号>/
+│       ├── photos/
+│       ├── edx/
+│       ├── data/
+│       └── others/
+└── backups/            # 备份目录 (自动创建)
+    ├── manifest.json   # 增量备份清单
+    └── <时间戳>/
+        ├── db.sqlite       # 数据库快照
+        ├── files/          # 增量文件
+        └── backup_info.json
 ```
 
 ## 元素质量计算公式
@@ -97,4 +110,39 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 | POST | `/api/samples/<id>/edx` | 上传 EDX 图片 |
 | POST | `/api/edx/<id>/recognize` | AI 识别 EDX |
 | POST | `/api/samples/<id>/datafiles` | 上传数据文件 |
+| POST | `/api/samples/<id>/otherfiles` | 上传其他文件 |
 | POST | `/api/calculate_mass` | 元素质量计算 |
+
+## 备份与恢复
+
+### 自动备份
+
+应用启动时自动执行一次备份，之后每隔固定时间自动增量备份。
+
+**备份内容：**
+- 数据库完整快照（使用 SQLite Online Backup API，安全热备份）
+- 上传文件增量备份（通过 manifest.json 跟踪文件变化，只备份新增/修改的文件）
+
+**配置 (`config.py`):**
+```python
+BACKUP_INTERVAL_HOURS = 24   # 备份间隔（小时）
+BACKUP_KEEP_COUNT = 30       # 最多保留备份数量，超出自动删除最旧的
+```
+
+### 命令行工具
+
+```bash
+# 查看所有备份
+python restore_backup.py list
+
+# 立即手动触发一次备份
+python restore_backup.py backup
+
+# 交互式选择恢复
+python restore_backup.py
+
+# 直接恢复到指定时间点
+python restore_backup.py 2026-03-08_22-00-00
+```
+
+> ⚠️ 恢复后需重启应用才能生效。
