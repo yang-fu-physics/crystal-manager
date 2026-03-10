@@ -273,6 +273,12 @@ def delete_photo(photo_id):
     row = conn.execute("SELECT filepath FROM photos WHERE id = ?", (photo_id,)).fetchone()
     if row and os.path.exists(row['filepath']):
         os.remove(row['filepath'])
+        # Also try to remove thumbnail
+        dir_name = os.path.dirname(row['filepath'])
+        base_name = os.path.basename(row['filepath'])
+        thumb_path = os.path.join(dir_name, f"thumb_{base_name}")
+        if os.path.exists(thumb_path):
+            os.remove(thumb_path)
     conn.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
     conn.commit()
     conn.close()
@@ -306,6 +312,12 @@ def delete_edx_image(edx_id):
     row = conn.execute("SELECT filepath FROM edx_images WHERE id = ?", (edx_id,)).fetchone()
     if row and os.path.exists(row['filepath']):
         os.remove(row['filepath'])
+        # Also try to remove thumbnail
+        dir_name = os.path.dirname(row['filepath'])
+        base_name = os.path.basename(row['filepath'])
+        thumb_path = os.path.join(dir_name, f"thumb_{base_name}")
+        if os.path.exists(thumb_path):
+            os.remove(thumb_path)
     conn.execute("DELETE FROM edx_images WHERE id = ?", (edx_id,))
     conn.commit()
     conn.close()

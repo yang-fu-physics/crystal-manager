@@ -9,6 +9,7 @@ import json
 import time
 from flask import Flask, request, jsonify, render_template, send_from_directory, session, redirect, url_for
 from functools import wraps
+from PIL import Image
 
 # 当前目录加入 sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -192,6 +193,7 @@ def upload_photo(sample_id):
             filepath = os.path.join(folder, safe_name)
             file.save(filepath)
             photo_id = models.add_photo(sample_id, file.filename, filepath)
+            _create_thumbnail(filepath)
             uploaded.append({'id': photo_id, 'filename': file.filename, 'filepath': filepath})
 
     return jsonify(uploaded), 201
@@ -226,6 +228,7 @@ def upload_edx(sample_id):
             filepath = os.path.join(folder, safe_name)
             file.save(filepath)
             edx_id = models.add_edx_image(sample_id, file.filename, filepath)
+            _create_thumbnail(filepath)
             uploaded.append({'id': edx_id, 'filename': file.filename, 'filepath': filepath})
 
     return jsonify(uploaded), 201
@@ -454,8 +457,43 @@ def get_elements():
 # 静态文件服务 (上传的文件)
 # ============================================================
 
+def _create_thumbnail(filepath, max_size=(300, 300)):
+    """生成缩略图，保存在同目录，前缀为 thumb_"""
+    try:
+        # Check if it's a valid image extension
+        ext = os.path.splitext(filepath)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']:
+            return
+
+        img = Image.open(filepath)
+        # Convert to RGB mode if necessary (e.g. RGBA for PNGs before saving as JPEG, or just to be safe)
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+            
+        img.thumbnail(max_size)
+        
+        dir_name = os.path.dirname(filepath)
+        base_name = os.path.basename(filepath)
+        thumb_path = os.path.join(dir_name, f"thumb_{base_name}")
+        
+        img.save(thumb_path)
+    except Exception as e:
+        app.logger.error(f"Failed to create thumbnail for {filepath}: {e}")
+
 @app.route('/uploads/<path:filename>')
 def serve_upload(filename):
+    use_thumb = request.args.get('thumb') == '1'
+    if use_thumb:
+        parts = filename.split('/')
+        if len(parts) > 0:
+            thumb_filename = '/'.join(parts[:-1] + [f"thumb_{parts[-1]}"]) if len(parts) > 1 else f"thumb_{parts[0]}"
+            
+            # Check if thumb exists (need native path for OS check)
+            full_thumb_path = os.path.join(config.UPLOAD_FOLDER, thumb_filename.replace('/', os.sep))
+            if os.path.exists(full_thumb_path):
+                # Send using POSIX path for Flask security
+                return send_from_directory(config.UPLOAD_FOLDER, thumb_filename)
+                
     return send_from_directory(config.UPLOAD_FOLDER, filename)
 
 

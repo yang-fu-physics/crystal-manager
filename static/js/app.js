@@ -786,9 +786,10 @@ function renderPhotos(photos) {
 
     photoGrid.innerHTML = photos.map(p => {
         const src = getUploadUrl(p.filepath);
+        const thumbSrc = src + '?thumb=1';
         return `
             <div class="photo-item" onclick="openModal('${escapeJs(src)}')">
-                <img src="${src}" alt="${escapeHtml(p.filename)}" loading="lazy">
+                <img src="${thumbSrc}" alt="${escapeHtml(p.filename)}" loading="lazy">
                 <button class="photo-delete" onclick="event.stopPropagation(); deleteAttachment('photos', ${p.id})" title="删除">×</button>
             </div>
         `;
@@ -803,6 +804,7 @@ function renderEdxList(edxImages) {
 
     edxList.innerHTML = edxImages.map(edx => {
         const src = getUploadUrl(edx.filepath);
+        const thumbSrc = src + '?thumb=1';
         const hasData = edx.recognized_data && edx.recognized_data.length > 0;
 
         let tableHtml = '';
@@ -846,7 +848,7 @@ function renderEdxList(edxImages) {
                 </div>
                 <div class="edx-content">
                     <div class="edx-image" onclick="openModal('${escapeJs(src)}')">
-                        <img src="${src}" alt="${escapeHtml(edx.filename)}" loading="lazy">
+                        <img src="${thumbSrc}" alt="${escapeHtml(edx.filename)}" loading="lazy">
                     </div>
                     <div class="edx-table-container" id="edxTable_${edx.id}">
                         ${tableHtml}
