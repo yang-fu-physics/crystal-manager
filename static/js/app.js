@@ -31,6 +31,7 @@ const resultsFieldInput = document.getElementById('resultsField');
 const notesFieldInput = document.getElementById('notesField');
 const toggleSuccess = document.getElementById('toggleSuccess');
 const toggleFail = document.getElementById('toggleFail');
+const togglePending = document.getElementById('togglePending');
 
 // Element calculator
 const elementTableBody = document.getElementById('elementTableBody');
@@ -128,14 +129,21 @@ function bindEvents() {
         });
     }
 
-    // Toggle success/fail
+    // Toggle success/fail/pending
     toggleSuccess.addEventListener('click', () => {
         toggleSuccess.classList.add('active');
         toggleFail.classList.remove('active');
+        togglePending.classList.remove('active');
     });
     toggleFail.addEventListener('click', () => {
         toggleFail.classList.add('active');
         toggleSuccess.classList.remove('active');
+        togglePending.classList.remove('active');
+    });
+    togglePending.addEventListener('click', () => {
+        togglePending.classList.add('active');
+        toggleSuccess.classList.remove('active');
+        toggleFail.classList.remove('active');
     });
 
     // Element calculator
@@ -218,7 +226,7 @@ async function loadSampleList(query = '') {
             <li class="sample-item ${s.id === currentSampleId ? 'active' : ''}" 
                 data-id="${escapeHtml(s.id)}">
                 <div class="sample-item-id">
-                    <span class="status-dot ${s.is_successful ? 'success' : 'fail'}"></span>
+                    <span class="status-dot ${s.is_successful === 1 ? 'success' : (s.is_successful === 2 ? 'pending' : 'fail')}"></span>
                     ${escapeHtml(s.id)}
                 </div>
                 <div class="sample-item-product">${escapeHtml(s.target_product || '—')}</div>
@@ -274,6 +282,7 @@ function createNewSample() {
     notesFieldInput.value = '';
     toggleSuccess.classList.add('active');
     toggleFail.classList.remove('active');
+    togglePending.classList.remove('active');
     elementTableBody.innerHTML = '';
     photoGrid.innerHTML = '';
     edxList.innerHTML = '';
@@ -296,12 +305,17 @@ function fillForm(sample) {
     resultsFieldInput.value = sample.results || '';
     notesFieldInput.value = sample.notes || '';
 
-    if (sample.is_successful) {
+    toggleSuccess.classList.remove('active');
+    toggleFail.classList.remove('active');
+    togglePending.classList.remove('active');
+    
+    let sVal = sample.status !== undefined ? sample.status : sample.is_successful;
+    if (sVal === 2) {
+        togglePending.classList.add('active');
+    } else if (sVal === 1 || sVal === true) {
         toggleSuccess.classList.add('active');
-        toggleFail.classList.remove('active');
     } else {
         toggleFail.classList.add('active');
-        toggleSuccess.classList.remove('active');
     }
 
     // 元素表
@@ -350,7 +364,9 @@ async function saveSample() {
         return;
     }
 
-    const isSuccessful = toggleSuccess.classList.contains('active');
+    let statusVal = 1;
+    if (toggleFail.classList.contains('active')) statusVal = 0;
+    else if (togglePending.classList.contains('active')) statusVal = 2;
 
     // 收集元素数据
     const elementRows = elementTableBody.querySelectorAll('tr');
@@ -375,7 +391,7 @@ async function saveSample() {
     const data = {
         id: id,
         target_product: targetProductInput.value.trim(),
-        is_successful: isSuccessful,
+        status: statusVal,
         growth_process: growthProcessInput.value.trim(),
         results: resultsFieldInput.value.trim(),
         notes: notesFieldInput.value.trim(),
@@ -477,6 +493,7 @@ function copySample() {
     notesFieldInput.value = '';
     toggleSuccess.classList.add('active');
     toggleFail.classList.remove('active');
+    togglePending.classList.remove('active');
 
     // 元素表 - 复制比例和质量
     elementTableBody.innerHTML = '';

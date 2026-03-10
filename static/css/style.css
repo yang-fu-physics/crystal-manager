@@ -333,6 +333,7 @@ body {
 
 .status-dot.success { background: var(--success); box-shadow: 0 0 5px rgba(39, 174, 96, 0.4); }
 .status-dot.fail { background: var(--danger); box-shadow: 0 0 5px rgba(231, 76, 60, 0.4); }
+.status-dot.pending { background: #9ca0b0; box-shadow: 0 0 5px rgba(156, 160, 176, 0.4); }
 
 /* ---------- Main Panel ---------- */
 .main-panel {
@@ -519,6 +520,12 @@ input::placeholder, textarea::placeholder {
 .toggle-btn[data-value="0"].active {
     background: var(--danger-bg);
     color: var(--danger);
+}
+
+.toggle-btn[data-value="2"].active {
+    background: rgba(156, 160, 176, 0.15); /* gray bg */
+    color: #5a5e72; /* var(--text-secondary) */
+    font-weight: 500;
 }
 
 /* ---------- Element Calculator ---------- */
