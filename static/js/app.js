@@ -258,7 +258,7 @@ async function loadSampleList(query = '') {
                     ${escapeHtml(s.id)}
                 </div>
                 <div class="sample-item-product">${escapeHtml(s.target_product || '—')}</div>
-                <div class="sample-item-date">${formatDate(s.updated_at)}</div>
+                <div class="sample-item-date">${formatDate(s.created_at)}</div>
             </li>
         `).join('');
     } catch (e) {

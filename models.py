@@ -122,11 +122,11 @@ def get_all_samples(query=None):
         rows = conn.execute(
             """SELECT * FROM samples
                WHERE id LIKE ? OR target_product LIKE ? OR notes LIKE ? OR results LIKE ? OR growth_process LIKE ?
-               ORDER BY updated_at DESC""",
+               ORDER BY created_at DESC""",
             (q, q, q, q, q)
         ).fetchall()
     else:
-        rows = conn.execute("SELECT * FROM samples ORDER BY updated_at DESC").fetchall()
+        rows = conn.execute("SELECT * FROM samples ORDER BY created_at DESC").fetchall()
     conn.close()
     return [sample_to_dict(r) for r in rows]
 
