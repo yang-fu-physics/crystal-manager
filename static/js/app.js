@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     loadSampleList();
     bindEvents();
+    bindTextareaResize();
 });
 
 // ============================================================
@@ -152,7 +153,7 @@ function bindEvents() {
 
     // Photo upload
     setupUploadZone(photoUploadZone, photoInput, (files) => uploadFiles(files, 'photos'));
-    
+
     // EDX upload
     setupUploadZone(edxUploadZone, edxInput, (files) => uploadFiles(files, 'edx'));
 
@@ -197,6 +198,33 @@ function closeSidebar() {
     const overlay = document.getElementById('sidebarOverlay');
     if (sidebar) sidebar.classList.remove('open');
     if (overlay) overlay.classList.remove('visible');
+}
+
+// Auto-resize textareas
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto'; // Reset height to recalculate
+    const newHeight = textarea.scrollHeight;
+    if (newHeight > 0) {
+        textarea.style.height = (newHeight + 2) + 'px'; // Set to scrollHeight + small buffer for border
+    } else {
+        textarea.style.height = '74px'; // Fallback default height if hidden
+    }
+}
+
+function bindTextareaResize() {
+    const textareas = document.querySelectorAll('textarea');
+    textareas.forEach(textarea => {
+        // Initial resize
+        autoResizeTextarea(textarea);
+
+        // Resize on input
+        textarea.addEventListener('input', function () {
+            autoResizeTextarea(this);
+        });
+
+        // Resize when window changes (optional, handles edge cases)
+        window.addEventListener('resize', () => autoResizeTextarea(textarea));
+    });
 }
 
 
@@ -280,9 +308,14 @@ function createNewSample() {
     growthProcessInput.value = '';
     resultsFieldInput.value = '';
     notesFieldInput.value = '';
-    toggleSuccess.classList.add('active');
+
+    // Auto-resize empty textareas back to minimal height
+    autoResizeTextarea(growthProcessInput);
+    autoResizeTextarea(resultsFieldInput);
+    autoResizeTextarea(notesFieldInput);
+    toggleSuccess.classList.remove('active');
     toggleFail.classList.remove('active');
-    togglePending.classList.remove('active');
+    togglePending.classList.add('active');
     elementTableBody.innerHTML = '';
     photoGrid.innerHTML = '';
     edxList.innerHTML = '';
@@ -305,10 +338,15 @@ function fillForm(sample) {
     resultsFieldInput.value = sample.results || '';
     notesFieldInput.value = sample.notes || '';
 
+    // Auto-resize populated textareas
+    autoResizeTextarea(growthProcessInput);
+    autoResizeTextarea(resultsFieldInput);
+    autoResizeTextarea(notesFieldInput);
+
     toggleSuccess.classList.remove('active');
     toggleFail.classList.remove('active');
     togglePending.classList.remove('active');
-    
+
     let sVal = sample.status !== undefined ? sample.status : sample.is_successful;
     if (sVal === 2) {
         togglePending.classList.add('active');
@@ -322,11 +360,16 @@ function fillForm(sample) {
     elementTableBody.innerHTML = '';
     const ratios = sample.element_ratios || [];
     const masses = sample.actual_masses || [];
+
+    // Check if any element has is_reference set (for older saved samples)
+    const hasExplicitRef = ratios.some(r => r.is_reference);
+
     if (ratios.length > 0) {
         ratios.forEach((item, idx) => {
             const mass = masses[idx] ? masses[idx].mass : '';
             const molarMass = allElements[item.element] || '';
-            addElementRow(item.element, item.ratio, molarMass, mass, idx === 0);
+            const isRef = hasExplicitRef ? item.is_reference : (idx === 0);
+            addElementRow(item.element, item.ratio, molarMass, mass, isRef);
         });
     }
 
@@ -346,6 +389,11 @@ function fillForm(sample) {
 function showForm(title, showDelete, scrollToTop = true) {
     emptyState.style.display = 'none';
     sampleForm.style.display = 'block';
+
+    // Auto-resize textareas now that they are visible and have dimensions
+    const formTextareas = sampleForm.querySelectorAll('textarea');
+    formTextareas.forEach(ta => autoResizeTextarea(ta));
+
     formTitle.textContent = title;
     deleteBtn.style.display = showDelete ? 'inline-flex' : 'none';
     copyBtn.style.display = showDelete ? 'inline-flex' : 'none';
@@ -376,10 +424,13 @@ async function saveSample() {
         const elInput = row.querySelector('.el-symbol');
         const ratioInput = row.querySelector('.el-ratio');
         const massInput = row.querySelector('.el-mass');
+        const refRadio = row.querySelector('.ref-radio');
+
         if (elInput && elInput.value.trim()) {
             elementRatios.push({
                 element: elInput.value.trim(),
-                ratio: parseFloat(ratioInput.value) || 0
+                ratio: parseFloat(ratioInput.value) || 0,
+                is_reference: refRadio ? refRadio.checked : false
             });
             actualMasses.push({
                 element: elInput.value.trim(),
@@ -491,9 +542,25 @@ function copySample() {
     // 清空这些字段
     resultsFieldInput.value = '';
     notesFieldInput.value = '';
-    toggleSuccess.classList.add('active');
+
+    // Auto-resize empty/populated textareas
+    autoResizeTextarea(growthProcessInput);
+    autoResizeTextarea(resultsFieldInput);
+    autoResizeTextarea(notesFieldInput);
+    toggleSuccess.classList.remove('active');
     toggleFail.classList.remove('active');
-    togglePending.classList.remove('active');
+    togglePending.classList.add('active');
+
+    // Find currently selected reference element before clearing
+    let selectedRefElement = null;
+    const currentRefRadio = elementTableBody.querySelector('.ref-radio:checked');
+    if (currentRefRadio) {
+        const row = currentRefRadio.closest('tr');
+        if (row) {
+            const symInput = row.querySelector('.el-symbol');
+            if (symInput) selectedRefElement = symInput.value.trim();
+        }
+    }
 
     // 元素表 - 复制比例和质量
     elementTableBody.innerHTML = '';
@@ -503,7 +570,8 @@ function copySample() {
         ratios.forEach((item, idx) => {
             const mass = masses[idx] ? masses[idx].mass : '';
             const molarMass = allElements[item.element] || '';
-            addElementRow(item.element, item.ratio, molarMass, mass, idx === 0);
+            const isRef = selectedRefElement ? (item.element === selectedRefElement) : (idx === 0);
+            addElementRow(item.element, item.ratio, molarMass, mass, isRef);
         });
     } else {
         addElementRow();
@@ -543,7 +611,7 @@ function addElementRow(element = '', ratio = '', molarMass = '', mass = '', isRe
 }
 
 // 当输入元素符号时，自动填充摩尔质量
-window.onElementInput = function(input) {
+window.onElementInput = function (input) {
     const val = input.value.trim();
     const row = input.closest('tr');
     const molarInput = row.querySelector('.el-molar');
@@ -616,7 +684,7 @@ async function calculateMass() {
         }
 
         const data = await resp.json();
-        
+
         // 填充结果
         const resultMap = {};
         data.results.forEach(r => { resultMap[r.element] = r; });

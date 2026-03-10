@@ -26,7 +26,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS samples (
             id TEXT PRIMARY KEY,
             target_product TEXT DEFAULT '',
-            is_successful INTEGER DEFAULT 0,
+            is_successful INTEGER DEFAULT 2,
             growth_process TEXT DEFAULT '',
             element_ratios TEXT DEFAULT '[]',
             actual_masses TEXT DEFAULT '[]',
@@ -177,7 +177,7 @@ def create_sample(data):
         (
             data['id'],
             data.get('target_product', ''),
-            data.get('status', 1 if data.get('is_successful') else 0),
+            data.get('status', 2),
             data.get('growth_process', ''),
             json.dumps(data.get('element_ratios', []), ensure_ascii=False),
             json.dumps(data.get('actual_masses', []), ensure_ascii=False),
@@ -206,7 +206,7 @@ def update_sample(sample_id, data):
         (
             new_id,
             data.get('target_product', ''),
-            data.get('status', 1 if data.get('is_successful') else 0),
+            data.get('status', 2),
             data.get('growth_process', ''),
             json.dumps(data.get('element_ratios', []), ensure_ascii=False),
             json.dumps(data.get('actual_masses', []), ensure_ascii=False),
