@@ -566,6 +566,7 @@ textarea::placeholder {
     font-size: 20px;
     cursor: pointer;
     transition: var(--transition);
+    white-space: nowrap;
 }
 
 .toggle-btn.active {
