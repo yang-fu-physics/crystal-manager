@@ -9,6 +9,132 @@ let isNewSample = false;      // 是否是新建样品
 let originalData = null;      // 编辑前的原始数据 (用于退出编辑恢复)
 let allElements = {};         // 元素摩尔质量表
 
+// ---- i18n Dictionary ----
+const translations = {
+    zh: {
+        title: "晶体材料样品管理系统",
+        nav: { sampleList: "样品列表", logoutTitle: "退出登录", logout: "🔒 退出" },
+        sidebar: { searchPlaceholder: "搜索样品编号、产物、备注...", clearSearch: "清除搜索", newSample: "新建样品" },
+        main: { emptyStateTitle: "选择或新建一个样品", emptyStateDesc: "从左侧列表选择一个样品查看详情，或点击「新建样品」开始记录" },
+        form: {
+            newSampleTitle: "新建样品", editSampleTitle: "编辑样品", copySampleTitle: "复制样品 — 请输入新编号",
+            copyTitle: "复制此样品的流程、产物、元素配比", copyBtn: "复制样品", cancelBtn: "退出编辑", deleteBtn: "删除", saveBtn: "保存",
+            sections: { basicInfo: "基本信息", growthProcess: "生长流程", results: "结果", notes: "额外备注", calculator: "元素比例 & 质量计算", photos: "实物照片", edx: "EDX 能谱分析", dataFiles: "数据文件 (.dat)", otherFiles: "其他文件" },
+            fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态" },
+            placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcess: "描述晶体的生长方法、温度曲线、时间等参数...", results: "实验结果描述...", notes: "其他需要记录的信息..." },
+            status: { success: "成功", fail: "失败", pending: "待定" },
+            calc: { symbol: "元素符号", ratio: "摩尔比", molarMass: "摩尔质量 (g/mol)", mass: "实际质量 (g)", reference: "参考", addElement: "添加元素", calcMass: "计算质量" },
+            upload: { dragPhoto: "拖拽照片到此处，或", dragEdx: "拖拽 EDX 谱图到此处，或", dragData: "拖拽 .dat/.csv/.txt 文件到此处，或", dragOther: "拖拽任何其他文件到此处，或", clickUpload: "点击上传", takePhoto: "拍照上传" }
+        },
+        messages: {
+            samplesCount: "{0} 个样品", noMatch: "没有找到匹配的样品", noSamples: "还没有样品，点击上方按钮新建",
+            fetchElementsFailed: "获取元素表失败", loadListFailed: "加载样品列表失败", fetchSampleFailed: "获取样品详情失败",
+            enterId: "请输入样品编号", saveFailed: "保存失败", saveSuccess: "保存成功", restoredOriginal: "已恢复原始数据",
+            confirmDelete: "确定要删除样品 \"{0}\" 吗？此操作不可撤销。", deleteFailed: "删除失败", deleteSuccess: "已删除样品",
+            copySuccess: "已复制流程、产物、元素配比，请输入新的样品编号", addElementFirst: "请先添加元素", selectReference: "请选择一个参考元素",
+            enterReferenceMass: "请输入参考元素的质量", calcFailed: "计算失败", calcSuccess: "计算完成",
+            saveBeforeUpload: "请先保存样品后再上传文件", uploadFailed: "上传失败", uploadSuccess: "上传成功",
+            recognizing: "正在调用 AI 识别...", recognizeFailed: "识别失败", edxSuccess: "EDX 识别完成",
+            noData: "未识别到元素数据", recognizeErrorPrefix: "识别失败: ", confirmDeleteFile: "确定要删除此文件吗？", confirmLogout: "确定要退出登录吗？",
+            edxHeader: { element: "元素", wt: "质量百分比 (%)", at: "原子百分比 (%)", nodata: "暂无识别数据，请点击「AI 识别」按钮" },
+            aiBtn: "🤖 AI 识别", delBtn: "× 删除"
+        }
+    },
+    en: {
+        title: "Crystal Sample Management",
+        nav: { sampleList: "Sample List", logoutTitle: "Logout", logout: "🔒 Logout" },
+        sidebar: { searchPlaceholder: "Search ID, product, notes...", clearSearch: "Clear", newSample: "New Sample" },
+        main: { emptyStateTitle: "Select or Create a Sample", emptyStateDesc: "Select a sample from the list to view details, or click 'New Sample'." },
+        form: {
+            newSampleTitle: "New Sample", editSampleTitle: "Edit Sample", copySampleTitle: "Copy Sample — Enter New ID",
+            copyTitle: "Copy process, product, and elemental ratios", copyBtn: "Copy", cancelBtn: "Cancel", deleteBtn: "Delete", saveBtn: "Save",
+            sections: { basicInfo: "Basic Info", growthProcess: "Growth Process", results: "Results", notes: "Notes", calculator: "Element Ratios & Mass", photos: "Photos", edx: "EDX Analysis", dataFiles: "Data Files (.dat)", otherFiles: "Other Files" },
+            fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status" },
+            placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcess: "Describe growth method, temp profile, time, etc...", results: "Experiment results...", notes: "Any other notes..." },
+            status: { success: "Success", fail: "Fail", pending: "Pending" },
+            calc: { symbol: "Symbol", ratio: "Mol Ratio", molarMass: "Molar Mass (g/mol)", mass: "Actual Mass (g)", reference: "Ref", addElement: "Add Element", calcMass: "Calculate Mass" },
+            upload: { dragPhoto: "Drag photos here, or ", dragEdx: "Drag EDX spectra here, or ", dragData: "Drag .dat/.csv/.txt files here, or ", dragOther: "Drag any other files here, or ", clickUpload: "Click to Select", takePhoto: "Take Photo" }
+        },
+        messages: {
+            samplesCount: "{0} Samples", noMatch: "No matching samples found", noSamples: "No samples yet, create one.",
+            fetchElementsFailed: "Failed to fetch elements", loadListFailed: "Failed to load sample list", fetchSampleFailed: "Failed to fetch sample details",
+            enterId: "Please enter Sample ID", saveFailed: "Failed to save", saveSuccess: "Saved successfully", restoredOriginal: "Restored original data",
+            confirmDelete: "Are you sure you want to delete sample \"{0}\"? This action cannot be undone.", deleteFailed: "Failed to delete", deleteSuccess: "Sample deleted",
+            copySuccess: "Copied process, product, and ratios. Please enter a new ID.", addElementFirst: "Add an element first", selectReference: "Select a reference element",
+            enterReferenceMass: "Enter the reference mass", calcFailed: "Calculation failed", calcSuccess: "Calculation complete",
+            saveBeforeUpload: "Please save the sample before uploading files", uploadFailed: "Upload failed", uploadSuccess: "Upload successful",
+            recognizing: "Calling AI for recognition...", recognizeFailed: "Recognition failed", edxSuccess: "EDX Recognition complete",
+            noData: "No element data identified", recognizeErrorPrefix: "Recognition failed: ", confirmDeleteFile: "Are you sure you want to delete this file?", confirmLogout: "Are you sure you want to logout?",
+            edxHeader: { element: "Element", wt: "Weight %", at: "Atomic %", nodata: "No data, click 'AI Recognition' button" },
+            aiBtn: "🤖 AI Recognize", delBtn: "× Delete"
+        }
+    }
+};
+
+let currentLang = localStorage.getItem('crystal_lang') || 'zh'; // 默认中文
+
+function t(path, ...args) {
+    let result = path.split('.').reduce((obj, key) => (obj && obj[key] !== 'undefined') ? obj[key] : null, translations[currentLang]);
+    if (result === null) {
+        result = path.split('.').reduce((obj, key) => (obj && obj[key] !== 'undefined') ? obj[key] : null, translations['zh']); // Fallback
+        if (result === null) return path;
+    }
+    if (args.length > 0) {
+        args.forEach((arg, i) => { result = result.replace(`{${i}}`, arg); });
+    }
+    return result;
+}
+
+function updateI18n() {
+    // 翻译常规元素的 textContent
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.innerHTML = t(el.getAttribute('data-i18n'));
+    });
+    // 翻译 placeholder
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+    // 翻译 title
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        el.title = t(el.getAttribute('data-i18n-title'));
+    });
+    // 翻译混合属性 (e.g. data-i18n-attr="content|description")
+    document.querySelectorAll('[data-i18n-attr]').forEach(el => {
+        const rules = el.getAttribute('data-i18n-attr').split(',');
+        rules.forEach(rule => {
+            const [attrName, transKey] = rule.split('|');
+            if (attrName && transKey) el.setAttribute(attrName, t(transKey));
+        });
+    });
+    
+    // 更新动态文本（如样品数量、表单标题、空列表提示）
+    if(sampleList.querySelector('.list-empty')) loadSampleList(searchInput.value);
+    if(sampleCountEl && sampleCountEl.dataset.count !== undefined) {
+        sampleCountEl.textContent = t('messages.samplesCount', sampleCountEl.dataset.count);
+    }
+    if(isEditing && currentSampleId) {
+        formTitle.textContent = t('form.editSampleTitle');
+    } else if (isNewSample) {
+        if(document.getElementById('copyBtn').style.display === 'none') {
+             formTitle.textContent = t('form.newSampleTitle');
+        } else {
+             // Form is in "Copy" mode but not saved yet, we let it be handled when needed or keep "newSampleTitle" 
+        }
+    }
+    
+    // 重新渲染可能的动态块
+    if(originalData) {
+         renderEdxList(originalData.edx_images || []);
+    }
+}
+
+function toggleLanguage() {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    localStorage.setItem('crystal_lang', currentLang);
+    updateI18n();
+}
+
+
 // ---- DOM Elements ----
 const sampleList = document.getElementById('sampleList');
 const sampleForm = document.getElementById('sampleForm');
@@ -62,12 +188,13 @@ const modalCloseBtn = document.getElementById('modalCloseBtn');
 
 // ---- Init ----
 document.addEventListener('DOMContentLoaded', async () => {
+    updateI18n(); // 初始化语言界面
     // 获取元素表
     try {
         const resp = await fetch('/api/elements');
         allElements = await resp.json();
     } catch (e) {
-        console.error('获取元素表失败', e);
+        console.error(t('messages.fetchElementsFailed'), e);
     }
 
     loadSampleList();
@@ -237,7 +364,8 @@ async function loadSampleList(query = '') {
         const resp = await fetch(url);
         const samples = await resp.json();
 
-        sampleCountEl.textContent = `${samples.length} 个样品`;
+        sampleCountEl.dataset.count = samples.length;
+        sampleCountEl.textContent = t('messages.samplesCount', samples.length);
 
         if (samples.length === 0) {
             sampleList.innerHTML = `
@@ -245,7 +373,7 @@ async function loadSampleList(query = '') {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                     </svg>
-                    <p>${query ? '没有找到匹配的样品' : '还没有样品，点击上方按钮新建'}</p>
+                    <p>${query ? t('messages.noMatch') : t('messages.noSamples')}</p>
                 </li>`;
             return;
         }
@@ -262,8 +390,8 @@ async function loadSampleList(query = '') {
             </li>
         `).join('');
     } catch (e) {
-        console.error('加载样品列表失败', e);
-        showToast('加载样品列表失败', 'error');
+        console.error(t('messages.loadListFailed'), e);
+        showToast(t('messages.loadListFailed'), 'error');
     }
 }
 
@@ -274,16 +402,16 @@ async function selectSample(id, scrollToTop = true) {
 
     try {
         const resp = await fetch(`/api/samples/${encodeURIComponent(id)}`);
-        if (!resp.ok) throw new Error('获取样品失败');
+        if (!resp.ok) throw new Error(t('messages.fetchSampleFailed'));
         const sample = await resp.json();
 
         originalData = JSON.parse(JSON.stringify(sample));
         fillForm(sample);
-        showForm('编辑样品', true, scrollToTop);
+        showForm(t('form.editSampleTitle'), true, scrollToTop);
         highlightActive(id);
     } catch (e) {
         console.error(e);
-        showToast('获取样品详情失败', 'error');
+        showToast(t('messages.fetchSampleFailed'), 'error');
     }
 }
 
@@ -326,7 +454,7 @@ function createNewSample() {
     addElementRow();
     addElementRow();
 
-    showForm('新建样品', false);
+    showForm(t('form.newSampleTitle'), false);
     highlightActive(null);
 }
 
@@ -407,7 +535,7 @@ function showForm(title, showDelete, scrollToTop = true) {
 async function saveSample() {
     const id = sampleIdInput.value.trim();
     if (!id) {
-        showToast('请输入样品编号', 'warning');
+        showToast(t('messages.enterId'), 'warning');
         sampleIdInput.focus();
         return;
     }
@@ -468,7 +596,7 @@ async function saveSample() {
 
         if (!resp.ok) {
             const err = await resp.json();
-            throw new Error(err.error || '保存失败');
+            throw new Error(err.error || t('messages.saveFailed'));
         }
 
         const saved = await resp.json();
@@ -476,10 +604,10 @@ async function saveSample() {
         isNewSample = false;
         originalData = JSON.parse(JSON.stringify(saved));
         fillForm(saved);
-        showForm('编辑样品', true);
+        showForm(t('form.editSampleTitle'), true);
         await loadSampleList(searchInput.value);
         highlightActive(saved.id);
-        showToast('保存成功', 'success');
+        showToast(t('messages.saveSuccess'), 'success');
     } catch (e) {
         console.error(e);
         showToast(e.message, 'error');
@@ -498,21 +626,21 @@ function cancelEdit() {
     } else if (originalData) {
         // 恢复原始数据
         fillForm(originalData);
-        showToast('已恢复原始数据', 'info');
+        showToast(t('messages.restoredOriginal'), 'info');
     }
 }
 
 async function deleteSample() {
     if (!currentSampleId) return;
-    if (!confirm(`确定要删除样品 "${currentSampleId}" 吗？此操作不可撤销。`)) return;
+    if (!confirm(t('messages.confirmDelete', currentSampleId))) return;
 
     try {
         const resp = await fetch(`/api/samples/${encodeURIComponent(currentSampleId)}`, {
             method: 'DELETE'
         });
-        if (!resp.ok) throw new Error('删除失败');
+        if (!resp.ok) throw new Error(t('messages.deleteFailed'));
 
-        showToast('已删除样品', 'success');
+        showToast(t('messages.deleteSuccess'), 'success');
         sampleForm.style.display = 'none';
         emptyState.style.display = 'flex';
         currentSampleId = null;
@@ -583,9 +711,9 @@ function copySample() {
     edxList.innerHTML = '';
     dataFileList.innerHTML = '';
 
-    showForm('复制样品 — 请输入新编号', false);
+    showForm(t('form.copySampleTitle'), false);
     highlightActive(null);
-    showToast('已复制流程、产物、元素配比，请输入新的样品编号', 'info');
+    showToast(t('messages.copySuccess'), 'info');
 }
 
 // ============================================================
@@ -633,7 +761,7 @@ window.onElementInput = function (input) {
 async function calculateMass() {
     const rows = elementTableBody.querySelectorAll('tr');
     if (rows.length === 0) {
-        showToast('请先添加元素', 'warning');
+        showToast(t('messages.addElementFirst'), 'warning');
         return;
     }
 
@@ -658,12 +786,12 @@ async function calculateMass() {
     });
 
     if (!refElement) {
-        showToast('请选择一个参考元素', 'warning');
+        showToast(t('messages.selectReference'), 'warning');
         return;
     }
 
     if (refMass <= 0) {
-        showToast('请输入参考元素的质量', 'warning');
+        showToast(t('messages.enterReferenceMass'), 'warning');
         return;
     }
 
@@ -680,7 +808,7 @@ async function calculateMass() {
 
         if (!resp.ok) {
             const err = await resp.json();
-            throw new Error(err.error || '计算失败');
+            throw new Error(err.error || t('messages.calcFailed'));
         }
 
         const data = await resp.json();
@@ -697,7 +825,7 @@ async function calculateMass() {
             }
         });
 
-        showToast('计算完成', 'success');
+        showToast(t('messages.calcSuccess'), 'success');
     } catch (e) {
         showToast(e.message, 'error');
     }
@@ -740,7 +868,7 @@ function setupUploadZone(zone, input, onFiles) {
 async function uploadFiles(files, type) {
     // 必须先保存样品
     if (isNewSample || !currentSampleId) {
-        showToast('请先保存样品后再上传文件', 'warning');
+        showToast(t('messages.saveBeforeUpload'), 'warning');
         return;
     }
 
@@ -764,10 +892,10 @@ async function uploadFiles(files, type) {
 
         if (!resp.ok) {
             const err = await resp.json();
-            throw new Error(err.error || '上传失败');
+            throw new Error(err.error || t('messages.uploadFailed'));
         }
 
-        showToast('上传成功', 'success');
+        showToast(t('messages.uploadSuccess'), 'success');
         // 重新加载样品详情，但保持滚动位置
         await selectSample(currentSampleId, false);
     } catch (e) {
@@ -813,9 +941,9 @@ function renderEdxList(edxImages) {
                 <table class="edx-table">
                     <thead>
                         <tr>
-                            <th>元素</th>
-                            <th>质量百分比 (%)</th>
-                            <th>原子百分比 (%)</th>
+                            <th>${t('messages.edxHeader.element')}</th>
+                            <th>${t('messages.edxHeader.wt')}</th>
+                            <th>${t('messages.edxHeader.at')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -830,7 +958,7 @@ function renderEdxList(edxImages) {
                 </table>
             `;
         } else {
-            tableHtml = '<div class="edx-no-data">暂无识别数据，请点击「AI 识别」按钮</div>';
+            tableHtml = `<div class="edx-no-data">${t('messages.edxHeader.nodata')}</div>`;
         }
 
         return `
@@ -839,10 +967,10 @@ function renderEdxList(edxImages) {
                     <span class="edx-card-title">📊 ${escapeHtml(edx.filename)}</span>
                     <div class="edx-card-actions">
                         <button class="btn-accent btn-sm" onclick="recognizeEdx(${edx.id}, this)">
-                            🤖 AI 识别
+                            ${t('messages.aiBtn')}
                         </button>
                         <button class="btn-danger btn-sm" onclick="deleteAttachment('edx', ${edx.id})">
-                            × 删除
+                            ${t('messages.delBtn')}
                         </button>
                     </div>
                 </div>
@@ -935,13 +1063,13 @@ async function recognizeEdx(edxId, btn) {
     const originalBtnText = btn.innerHTML;
 
     btn.disabled = true;
-    btn.innerHTML = '⏳ 识别中...';
+    btn.innerHTML = '⏳ ...';
     tableContainer.innerHTML = `
         <div class="recognizing">
             <span class="loading-dot"></span>
             <span class="loading-dot"></span>
             <span class="loading-dot"></span>
-            正在调用 AI 识别...
+            ${t('messages.recognizing')}
         </div>
     `;
 
@@ -950,7 +1078,7 @@ async function recognizeEdx(edxId, btn) {
 
         if (!resp.ok) {
             const err = await resp.json();
-            throw new Error(err.error || '识别失败');
+            throw new Error(err.error || t('messages.recognizeFailed'));
         }
 
         const data = await resp.json();
@@ -960,7 +1088,7 @@ async function recognizeEdx(edxId, btn) {
             tableContainer.innerHTML = `
                 <table class="edx-table">
                     <thead>
-                        <tr><th>元素</th><th>质量百分比 (%)</th><th>原子百分比 (%)</th></tr>
+                        <tr><th>${t('messages.edxHeader.element')}</th><th>${t('messages.edxHeader.wt')}</th><th>${t('messages.edxHeader.at')}</th></tr>
                     </thead>
                     <tbody>
                         ${results.map(d => `
@@ -973,13 +1101,13 @@ async function recognizeEdx(edxId, btn) {
                     </tbody>
                 </table>
             `;
-            showToast('EDX 识别完成', 'success');
+            showToast(t('messages.edxSuccess'), 'success');
         } else {
-            tableContainer.innerHTML = '<div class="edx-no-data">未识别到元素数据</div>';
-            showToast('未识别到元素数据', 'warning');
+            tableContainer.innerHTML = `<div class="edx-no-data">${t('messages.noData')}</div>`;
+            showToast(t('messages.noData'), 'warning');
         }
     } catch (e) {
-        tableContainer.innerHTML = `<div class="edx-no-data" style="color:var(--danger)">识别失败: ${escapeHtml(e.message)}</div>`;
+        tableContainer.innerHTML = `<div class="edx-no-data" style="color:var(--danger)">${t('messages.recognizeErrorPrefix')}${escapeHtml(e.message)}</div>`;
         showToast(e.message, 'error');
     } finally {
         btn.disabled = false;
@@ -994,7 +1122,7 @@ window.recognizeEdx = recognizeEdx;
 // Delete Attachment
 // ============================================================
 async function deleteAttachment(type, id) {
-    if (!confirm('确定要删除此文件吗？')) return;
+    if (!confirm(t('messages.confirmDeleteFile'))) return;
 
     const urlMap = {
         photos: `/api/photos/${id}`,
@@ -1005,9 +1133,9 @@ async function deleteAttachment(type, id) {
 
     try {
         const resp = await fetch(urlMap[type], { method: 'DELETE' });
-        if (!resp.ok) throw new Error('删除失败');
+        if (!resp.ok) throw new Error(t('messages.deleteFailed'));
 
-        showToast('已删除', 'success');
+        showToast(t('messages.deleteSuccess'), 'success');
         // 重新加载（保持滚动位置）
         if (currentSampleId) await selectSample(currentSampleId, false);
     } catch (e) {
@@ -1092,7 +1220,7 @@ function showToast(message, type = 'info') {
 // Logout
 // ============================================================
 async function logout() {
-    if (!confirm('确定要退出登录吗？')) return;
+    if (!confirm(t('messages.confirmLogout'))) return;
     try {
         await fetch('/api/logout', { method: 'POST' });
     } catch (e) { /* ignore */ }

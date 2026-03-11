@@ -169,19 +169,43 @@
             25% { transform: translateX(-6px); }
             75% { transform: translateX(6px); }
         }
+
+        .lang-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .lang-toggle:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(108, 92, 231, 0.15);
+        }
     </style>
 </head>
 <body>
+    <button class="lang-toggle" id="langToggle" onclick="toggleLanguage()">En / 中</button>
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
                 <span class="login-icon">💎</span>
-                <h1>晶体材料样品管理系统</h1>
-                <p>请输入密码以继续</p>
+                <h1 id="title_h1">晶体材料样品管理系统</h1>
+                <p id="desc_p">请输入密码以继续</p>
             </div>
             <form id="loginForm">
                 <div class="form-group">
-                    <label for="password">访问密码</label>
+                    <label for="password" id="label_pass">访问密码</label>
                     <input type="password" id="password" placeholder="请输入密码..." autofocus autocomplete="current-password">
                 </div>
                 <button type="submit" class="login-btn" id="loginBtn">登 录</button>
@@ -191,14 +215,68 @@
     </div>
 
     <script>
+        const i18n = {
+            zh: {
+                title: "登录 - 晶体材料样品管理系统",
+                h1: "晶体材料样品管理系统",
+                desc: "请输入密码以继续",
+                passLabel: "访问密码",
+                passPlaceholder: "请输入密码...",
+                btnText: "登 录",
+                verifying: "验证中...",
+                errNetwork: "网络错误，请重试",
+                errPass: "密码错误"
+            },
+            en: {
+                title: "Login - Crystal Sample Management",
+                h1: "Crystal Sample Management",
+                desc: "Please enter your password",
+                passLabel: "Access Password",
+                passPlaceholder: "Enter password...",
+                btnText: "LOGIN",
+                verifying: "Verifying...",
+                errNetwork: "Network error, please try again",
+                errPass: "Incorrect password"
+            }
+        };
+
+        let currentLang = localStorage.getItem('crystal_lang') || 'zh';
+
+        function updateUI() {
+            const t = i18n[currentLang];
+            document.title = t.title;
+            document.getElementById('title_h1').textContent = t.h1;
+            document.getElementById('desc_p').textContent = t.desc;
+            document.getElementById('label_pass').textContent = t.passLabel;
+            document.getElementById('password').placeholder = t.passPlaceholder;
+            const loginBtn = document.getElementById('loginBtn');
+            if (loginBtn.disabled) {
+                loginBtn.textContent = t.verifying;
+            } else {
+                loginBtn.textContent = t.btnText;
+            }
+            // Error messages won't be actively translated if they come from the server unless intercepted, 
+            // but we can translate client-side ones.
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            localStorage.setItem('crystal_lang', currentLang);
+            updateUI();
+        }
+
+        // Init language UI on load
+        updateUI();
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('loginBtn');
             const errorMsg = document.getElementById('errorMsg');
             const password = document.getElementById('password').value;
+            const t = i18n[currentLang];
 
             btn.disabled = true;
-            btn.textContent = '验证中...';
+            btn.textContent = t.verifying;
             errorMsg.textContent = '';
 
             try {
@@ -212,14 +290,14 @@
                     window.location.href = '/';
                 } else {
                     const data = await resp.json();
-                    errorMsg.textContent = data.error || '密码错误';
+                    errorMsg.textContent = data.error || t.errPass;
                     document.getElementById('password').select();
                 }
             } catch (err) {
-                errorMsg.textContent = '网络错误，请重试';
+                errorMsg.textContent = t.errNetwork;
             } finally {
                 btn.disabled = false;
-                btn.textContent = '登 录';
+                btn.textContent = t.btnText;
             }
         });
     </script>
