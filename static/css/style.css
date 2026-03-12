@@ -377,6 +377,27 @@ body {
     box-shadow: 0 0 5px rgba(156, 160, 176, 0.4);
 }
 
+.badge {
+    font-size: 12px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    color: white;
+    font-weight: 600;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+}
+
+.badge-elect {
+    background-color: var(--warning);
+}
+
+.badge-magn {
+    background-color: var(--accent);
+}
+
 /* ---------- Main Panel ---------- */
 .main-panel {
     flex: 1;

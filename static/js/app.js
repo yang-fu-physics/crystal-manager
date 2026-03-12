@@ -20,9 +20,11 @@ const translations = {
             newSampleTitle: "新建样品", editSampleTitle: "编辑样品", copySampleTitle: "复制样品 — 请输入新编号",
             copyTitle: "复制此样品的流程、产物、元素配比", copyBtn: "复制样品", cancelBtn: "退出编辑", deleteBtn: "删除", saveBtn: "保存",
             sections: { basicInfo: "基本信息", growthProcess: "生长流程", results: "结果", notes: "额外备注", calculator: "元素比例 & 质量计算", photos: "实物照片", edx: "EDX 能谱分析", dataFiles: "数据文件 (.dat)", otherFiles: "其他文件" },
-            fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态" },
+            fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态", measurements: "测量" },
             placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcess: "描述晶体的生长方法、温度曲线、时间等参数...", results: "实验结果描述...", notes: "其他需要记录的信息..." },
             status: { success: "成功", fail: "失败", pending: "待定" },
+            measurements: { electric: "电学测量", magnetic: "磁性测量" },
+            badges: { electric: "电", magnetic: "磁" },
             calc: { symbol: "元素符号", ratio: "摩尔比", molarMass: "摩尔质量 (g/mol)", mass: "实际质量 (g)", reference: "参考", addElement: "添加元素", calcMass: "计算质量" },
             upload: { dragPhoto: "拖拽照片到此处，或", dragEdx: "拖拽 EDX 谱图到此处，或", dragData: "拖拽 .dat/.csv/.txt 文件到此处，或", dragOther: "拖拽任何其他文件到此处，或", clickUpload: "点击上传", takePhoto: "拍照上传" }
         },
@@ -49,9 +51,11 @@ const translations = {
             newSampleTitle: "New Sample", editSampleTitle: "Edit Sample", copySampleTitle: "Copy Sample — Enter New ID",
             copyTitle: "Copy process, product, and elemental ratios", copyBtn: "Copy", cancelBtn: "Cancel", deleteBtn: "Delete", saveBtn: "Save",
             sections: { basicInfo: "Basic Info", growthProcess: "Growth Process", results: "Results", notes: "Notes", calculator: "Element Ratios & Mass", photos: "Photos", edx: "EDX Analysis", dataFiles: "Data Files (.dat)", otherFiles: "Other Files" },
-            fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status" },
+            fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status", measurements: "Measurements" },
             placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcess: "Describe growth method, temp profile, time, etc...", results: "Experiment results...", notes: "Any other notes..." },
             status: { success: "Success", fail: "Fail", pending: "Pending" },
+            measurements: { electric: "Electric", magnetic: "Magnetic" },
+            badges: { electric: "Elec", magnetic: "Mag" },
             calc: { symbol: "Symbol", ratio: "Mol Ratio", molarMass: "Molar Mass (g/mol)", mass: "Actual Mass (g)", reference: "Ref", addElement: "Add Element", calcMass: "Calculate Mass" },
             upload: { dragPhoto: "Drag photos here, or ", dragEdx: "Drag EDX spectra here, or ", dragData: "Drag .dat/.csv/.txt files here, or ", dragOther: "Drag any other files here, or ", clickUpload: "Click to Select", takePhoto: "Take Photo" }
         },
@@ -158,6 +162,8 @@ const notesFieldInput = document.getElementById('notesField');
 const toggleSuccess = document.getElementById('toggleSuccess');
 const toggleFail = document.getElementById('toggleFail');
 const togglePending = document.getElementById('togglePending');
+const toggleElectric = document.getElementById('toggleElectric');
+const toggleMagnetic = document.getElementById('toggleMagnetic');
 
 // Element calculator
 const elementTableBody = document.getElementById('elementTableBody');
@@ -274,6 +280,16 @@ function bindEvents() {
         toggleFail.classList.remove('active');
     });
 
+    // Measurement toggles
+    toggleElectric.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleElectric.classList.toggle('active');
+    });
+    toggleMagnetic.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleMagnetic.classList.toggle('active');
+    });
+
     // Element calculator
     addElementBtn.addEventListener('click', () => addElementRow());
     calculateBtn.addEventListener('click', () => calculateMass());
@@ -384,6 +400,8 @@ async function loadSampleList(query = '') {
                 <div class="sample-item-id">
                     <span class="status-dot ${s.is_successful === 1 ? 'success' : (s.is_successful === 2 ? 'pending' : 'fail')}"></span>
                     ${escapeHtml(s.id)}
+                    ${s.has_electric ? '<span class="badge badge-elect" data-i18n="form.badges.electric">' + t('form.badges.electric') + '</span>' : ''}
+                    ${s.has_magnetic ? '<span class="badge badge-magn" data-i18n="form.badges.magnetic">' + t('form.badges.magnetic') + '</span>' : ''}
                 </div>
                 <div class="sample-item-product">${escapeHtml(s.target_product || '—')}</div>
                 <div class="sample-item-date">${formatDate(s.created_at)}</div>
@@ -444,6 +462,10 @@ function createNewSample() {
     toggleSuccess.classList.remove('active');
     toggleFail.classList.remove('active');
     togglePending.classList.add('active');
+    
+    toggleElectric.classList.remove('active');
+    toggleMagnetic.classList.remove('active');
+    
     elementTableBody.innerHTML = '';
     photoGrid.innerHTML = '';
     edxList.innerHTML = '';
@@ -483,6 +505,12 @@ function fillForm(sample) {
     } else {
         toggleFail.classList.add('active');
     }
+
+    if (sample.has_electric) toggleElectric.classList.add('active');
+    else toggleElectric.classList.remove('active');
+
+    if (sample.has_magnetic) toggleMagnetic.classList.add('active');
+    else toggleMagnetic.classList.remove('active');
 
     // 元素表
     elementTableBody.innerHTML = '';
@@ -543,6 +571,9 @@ async function saveSample() {
     let statusVal = 1;
     if (toggleFail.classList.contains('active')) statusVal = 0;
     else if (togglePending.classList.contains('active')) statusVal = 2;
+    
+    const hasElectric = toggleElectric.classList.contains('active') ? 1 : 0;
+    const hasMagnetic = toggleMagnetic.classList.contains('active') ? 1 : 0;
 
     // 收集元素数据
     const elementRows = elementTableBody.querySelectorAll('tr');
@@ -571,6 +602,8 @@ async function saveSample() {
         id: id,
         target_product: targetProductInput.value.trim(),
         status: statusVal,
+        has_electric: hasElectric,
+        has_magnetic: hasMagnetic,
         growth_process: growthProcessInput.value.trim(),
         results: resultsFieldInput.value.trim(),
         notes: notesFieldInput.value.trim(),
@@ -678,6 +711,12 @@ function copySample() {
     toggleSuccess.classList.remove('active');
     toggleFail.classList.remove('active');
     togglePending.classList.add('active');
+
+    if (originalData.has_electric) toggleElectric.classList.add('active');
+    else toggleElectric.classList.remove('active');
+
+    if (originalData.has_magnetic) toggleMagnetic.classList.add('active');
+    else toggleMagnetic.classList.remove('active');
 
     // Find currently selected reference element before clearing
     let selectedRefElement = null;

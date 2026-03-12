@@ -27,6 +27,8 @@ def init_db():
             id TEXT PRIMARY KEY,
             target_product TEXT DEFAULT '',
             is_successful INTEGER DEFAULT 2,
+            has_electric INTEGER DEFAULT 0,
+            has_magnetic INTEGER DEFAULT 0,
             growth_process TEXT DEFAULT '',
             element_ratios TEXT DEFAULT '[]',
             actual_masses TEXT DEFAULT '[]',
@@ -80,6 +82,13 @@ def init_db():
                 FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
             )
         """)
+
+    # Dynamic migration for has_electric and has_magnetic
+    try:
+        cursor.execute("SELECT has_electric FROM samples LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE samples ADD COLUMN has_electric INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE samples ADD COLUMN has_magnetic INTEGER DEFAULT 0")
 
     conn.commit()
     conn.close()
@@ -171,13 +180,15 @@ def create_sample(data):
     now = datetime.now().isoformat()
     conn = get_db()
     conn.execute(
-        """INSERT INTO samples (id, target_product, is_successful, growth_process,
+        """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, growth_process,
            element_ratios, actual_masses, notes, results, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             data['id'],
             data.get('target_product', ''),
             data.get('status', 2),
+            data.get('has_electric', 0),
+            data.get('has_magnetic', 0),
             data.get('growth_process', ''),
             json.dumps(data.get('element_ratios', []), ensure_ascii=False),
             json.dumps(data.get('actual_masses', []), ensure_ascii=False),
@@ -200,13 +211,15 @@ def update_sample(sample_id, data):
     new_id = data.get('id', sample_id)
 
     conn.execute(
-        """UPDATE samples SET id=?, target_product=?, is_successful=?, growth_process=?,
+        """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, growth_process=?,
            element_ratios=?, actual_masses=?, notes=?, results=?, updated_at=?
            WHERE id=?""",
         (
             new_id,
             data.get('target_product', ''),
             data.get('status', 2),
+            data.get('has_electric', 0),
+            data.get('has_magnetic', 0),
             data.get('growth_process', ''),
             json.dumps(data.get('element_ratios', []), ensure_ascii=False),
             json.dumps(data.get('actual_masses', []), ensure_ascii=False),
