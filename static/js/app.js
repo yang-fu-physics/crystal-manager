@@ -712,11 +712,8 @@ function copySample() {
     toggleFail.classList.remove('active');
     togglePending.classList.add('active');
 
-    if (originalData.has_electric) toggleElectric.classList.add('active');
-    else toggleElectric.classList.remove('active');
-
-    if (originalData.has_magnetic) toggleMagnetic.classList.add('active');
-    else toggleMagnetic.classList.remove('active');
+    toggleElectric.classList.remove('active');
+    toggleMagnetic.classList.remove('active');
 
     // Find currently selected reference element before clearing
     let selectedRefElement = null;
