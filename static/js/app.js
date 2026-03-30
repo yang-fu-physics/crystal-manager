@@ -756,13 +756,14 @@ function copySample() {
 // Element Calculator
 // ============================================================
 function addElementRow(element = '', ratio = '', molarMass = '', mass = '', isRef = false) {
+    const formattedMass = (mass !== '' && mass !== 0 && !isNaN(mass)) ? parseFloat(mass).toFixed(4) : mass;
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" class="el-symbol" value="${escapeHtml(String(element))}" placeholder="Fe" 
              oninput="onElementInput(this)"></td>
         <td><input type="number" class="el-ratio" value="${ratio}" placeholder="1" step="0.01" min="0.01" max="150"></td>
         <td><input type="text" class="el-molar readonly-mass" value="${molarMass}" readonly tabindex="-1"></td>
-        <td><input type="number" class="el-mass" value="${mass}" placeholder="—" step="0.0001" min="0" max="50"></td>
+        <td><input type="number" class="el-mass" value="${formattedMass}" placeholder="—" step="0.0001" min="0" max="50"></td>
         <td style="text-align:center"><input type="radio" name="refElement" class="ref-radio" ${isRef ? 'checked' : ''}></td>
         <td><button class="element-row-del" onclick="this.closest('tr').remove()">×</button></td>
     `;
@@ -856,7 +857,7 @@ async function calculateMass() {
         rows.forEach(row => {
             const el = row.querySelector('.el-symbol').value.trim();
             if (resultMap[el]) {
-                row.querySelector('.el-mass').value = resultMap[el].mass;
+                row.querySelector('.el-mass').value = parseFloat(resultMap[el].mass).toFixed(4);
                 row.querySelector('.el-molar').value = resultMap[el].molar_mass;
             }
         });

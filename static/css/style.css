@@ -645,6 +645,47 @@ textarea::placeholder {
     font-weight: 500;
 }
 
+/* Column width constraints for element calculator */
+.element-table td:nth-child(1),
+.element-table th:nth-child(1) {
+    min-width: 5ch;   /* symbol: 2 chars */
+}
+.element-table input.el-symbol {
+    min-width: 5ch;
+    font-family: 'Courier New', monospace;
+    text-align: center;
+}
+
+.element-table td:nth-child(2),
+.element-table th:nth-child(2) {
+    min-width: 7ch;   /* molar ratio */
+}
+.element-table input.el-ratio {
+    min-width: 7ch;
+    font-family: 'Courier New', monospace;
+    text-align: right;
+}
+
+.element-table td:nth-child(3),
+.element-table th:nth-child(3) {
+    min-width: 6ch;   /* molar mass */
+}
+.element-table input.el-molar {
+    min-width: 6ch;
+    font-family: 'Courier New', monospace;
+    text-align: right;
+}
+
+.element-table td:nth-child(4),
+.element-table th:nth-child(4) {
+    min-width: 8ch;  /* actual mass: priority column */
+}
+.element-table input.el-mass {
+    min-width: 8ch;
+    font-family: 'Courier New', monospace;
+    text-align: right;
+}
+
 .element-table .ref-radio {
     width: 16px;
     height: 16px;

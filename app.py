@@ -441,7 +441,7 @@ def calculate_mass():
             'element': el,
             'ratio': ratio,
             'molar_mass': round(molar_mass, 4),
-            'mass': round(mass, 6)
+            'mass': round(mass, 4)
         })
 
     return jsonify({'results': results})
