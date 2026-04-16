@@ -33,7 +33,7 @@
     --radius-md: 10px;
     --radius-lg: 14px;
     --transition: all 0.2s ease;
-    --sidebar-width: 480px;
+    --sidebar-width: 360px;
     --topbar-height: 56px;
     --font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -377,6 +377,17 @@ body {
     box-shadow: 0 0 5px rgba(156, 160, 176, 0.4);
 }
 
+.status-dot.growing {
+    background: #0984e3;
+    box-shadow: 0 0 5px rgba(9, 132, 227, 0.5);
+    animation: pulse-blue 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse-blue {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
 .badge {
     font-size: 12px;
     padding: 2px 5px;
@@ -606,6 +617,12 @@ textarea::placeholder {
     /* gray bg */
     color: #5a5e72;
     /* var(--text-secondary) */
+    font-weight: 500;
+}
+
+.toggle-btn[data-value="3"].active {
+    background: rgba(9, 132, 227, 0.12);
+    color: #0984e3;
     font-weight: 500;
 }
 
