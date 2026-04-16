@@ -20,7 +20,9 @@ const translations = {
             newSampleTitle: "新建样品", editSampleTitle: "编辑样品", copySampleTitle: "复制样品 — 请输入新编号",
             copyTitle: "复制此样品的流程、产物、元素配比", copyBtn: "复制样品", cancelBtn: "退出编辑", deleteBtn: "删除", saveBtn: "保存",
             sections: { basicInfo: "基本信息", growthProcess: "生长流程", results: "结果", notes: "额外备注", calculator: "元素比例 & 质量计算", photos: "实物照片", edx: "EDX 能谱分析", dataFiles: "数据文件 (.dat)", otherFiles: "其他文件" },
-            fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态", measurements: "测量" },
+            fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态", measurements: "测量",
+                       sinteringStart: "开始烧制时间", sinteringDuration: "烧制耗时 (小时)", sinteringEnd: "结束时间",
+                       sinteringNowBtn: "当前时间", sinteringNowTitle: "设为当前时间" },
             placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcess: "描述晶体的生长方法、温度曲线、时间等参数...", results: "实验结果描述...", notes: "其他需要记录的信息..." },
             status: { success: "成功", fail: "失败", pending: "待定", growing: "生长中" },
             measurements: { electric: "电学测量", magnetic: "磁性测量" },
@@ -51,7 +53,9 @@ const translations = {
             newSampleTitle: "New Sample", editSampleTitle: "Edit Sample", copySampleTitle: "Copy Sample — Enter New ID",
             copyTitle: "Copy process, product, and elemental ratios", copyBtn: "Copy", cancelBtn: "Cancel", deleteBtn: "Delete", saveBtn: "Save",
             sections: { basicInfo: "Basic Info", growthProcess: "Growth Process", results: "Results", notes: "Notes", calculator: "Element Ratios & Mass", photos: "Photos", edx: "EDX Analysis", dataFiles: "Data Files (.dat)", otherFiles: "Other Files" },
-            fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status", measurements: "Measurements" },
+            fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status", measurements: "Measurements",
+                       sinteringStart: "Sintering Start", sinteringDuration: "Duration (hours)", sinteringEnd: "End Time",
+                       sinteringNowBtn: "Now", sinteringNowTitle: "Set to current time" },
             placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcess: "Describe growth method, temp profile, time, etc...", results: "Experiment results...", notes: "Any other notes..." },
             status: { success: "Success", fail: "Fail", pending: "Pending", growing: "Growing" },
             measurements: { electric: "Electric", magnetic: "Magnetic" },
@@ -165,6 +169,12 @@ const togglePending = document.getElementById('togglePending');
 const toggleElectric = document.getElementById('toggleElectric');
 const toggleMagnetic = document.getElementById('toggleMagnetic');
 const toggleGrowing = document.getElementById('toggleGrowing');
+
+// Sintering time
+const sinteringStartInput = document.getElementById('sinteringStart');
+const sinteringDurationInput = document.getElementById('sinteringDuration');
+const sinteringEndInput = document.getElementById('sinteringEnd');
+const btnNow = document.getElementById('btnNow');
 
 // Element calculator
 const elementTableBody = document.getElementById('elementTableBody');
@@ -299,6 +309,18 @@ function bindEvents() {
         e.preventDefault();
         toggleMagnetic.classList.toggle('active');
     });
+
+    // Sintering time
+    btnNow.addEventListener('click', () => {
+        const now = new Date();
+        // Format to datetime-local value: YYYY-MM-DDTHH:MM
+        const pad = n => String(n).padStart(2, '0');
+        const local = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        sinteringStartInput.value = local;
+        updateSinteringEnd();
+    });
+    sinteringStartInput.addEventListener('change', updateSinteringEnd);
+    sinteringDurationInput.addEventListener('input', updateSinteringEnd);
 
     // Element calculator
     addElementBtn.addEventListener('click', () => addElementRow());
@@ -476,7 +498,12 @@ function createNewSample() {
     
     toggleElectric.classList.remove('active');
     toggleMagnetic.classList.remove('active');
-    
+
+    // Clear sintering time
+    sinteringStartInput.value = '';
+    sinteringDurationInput.value = '';
+    sinteringEndInput.value = '';
+
     elementTableBody.innerHTML = '';
     photoGrid.innerHTML = '';
     edxList.innerHTML = '';
@@ -525,6 +552,11 @@ function fillForm(sample) {
 
     if (sample.has_magnetic) toggleMagnetic.classList.add('active');
     else toggleMagnetic.classList.remove('active');
+
+    // Sintering time
+    sinteringStartInput.value = isoToDatetimeLocal(sample.sintering_start || '');
+    sinteringDurationInput.value = (sample.sintering_duration != null && sample.sintering_duration !== '') ? sample.sintering_duration : '';
+    updateSinteringEnd();
 
     // 元素表
     elementTableBody.innerHTML = '';
@@ -623,7 +655,10 @@ async function saveSample() {
         results: resultsFieldInput.value.trim(),
         notes: notesFieldInput.value.trim(),
         element_ratios: elementRatios,
-        actual_masses: actualMasses
+        actual_masses: actualMasses,
+        sintering_start: datetimeLocalToIso(sinteringStartInput.value),
+        sintering_duration: sinteringDurationInput.value !== '' ? parseFloat(sinteringDurationInput.value) : null,
+        sintering_end: sinteringEndInput.value
     };
 
     try {
@@ -730,6 +765,11 @@ function copySample() {
 
     toggleElectric.classList.remove('active');
     toggleMagnetic.classList.remove('active');
+
+    // Clear sintering time for copy
+    sinteringStartInput.value = '';
+    sinteringDurationInput.value = '';
+    sinteringEndInput.value = ''
 
     // Find currently selected reference element before clearing
     let selectedRefElement = null;
@@ -1281,4 +1321,62 @@ async function logout() {
 }
 
 window.logout = logout;
+
+// ============================================================
+// Sintering Time Helpers
+// ============================================================
+
+/**
+ * Convert ISO datetime string to datetime-local input value (YYYY-MM-DDTHH:MM)
+ */
+function isoToDatetimeLocal(isoStr) {
+    if (!isoStr) return '';
+    // Support both ISO ("2026-04-16T14:30:00") and already-local formats
+    let d;
+    try {
+        // datetime-local format is already local; if stored as ISO with offset, parse correctly
+        d = new Date(isoStr);
+        if (isNaN(d.getTime())) return isoStr;
+        const pad = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch (e) {
+        return isoStr;
+    }
+}
+
+/**
+ * Convert datetime-local string back to a display-friendly string for storage.
+ * We store exactly the string from the input (local time, no timezone offset).
+ */
+function datetimeLocalToIso(localStr) {
+    return localStr || '';
+}
+
+/**
+ * Compute sintering end time from start + duration, display in sinteringEndInput.
+ */
+function updateSinteringEnd() {
+    const startVal = sinteringStartInput.value;
+    const durVal = sinteringDurationInput.value;
+
+    if (!startVal || durVal === '' || durVal === null) {
+        sinteringEndInput.value = '';
+        return;
+    }
+
+    const startDate = new Date(startVal);
+    const durationHours = parseFloat(durVal);
+
+    if (isNaN(startDate.getTime()) || isNaN(durationHours) || durationHours < 0) {
+        sinteringEndInput.value = '';
+        return;
+    }
+
+    const endDate = new Date(startDate.getTime() + durationHours * 3600 * 1000);
+    const pad = n => String(n).padStart(2, '0');
+    const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    const weekday = weekdays[endDate.getDay()];
+    const endStr = `${endDate.getFullYear()}-${pad(endDate.getMonth()+1)}-${pad(endDate.getDate())} ${pad(endDate.getHours())}:${pad(endDate.getMinutes())}  ${weekday}`;
+    sinteringEndInput.value = endStr;
+}
 

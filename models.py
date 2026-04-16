@@ -34,6 +34,9 @@ def init_db():
             actual_masses TEXT DEFAULT '[]',
             notes TEXT DEFAULT '',
             results TEXT DEFAULT '',
+            sintering_start TEXT DEFAULT '',
+            sintering_duration REAL DEFAULT NULL,
+            sintering_end TEXT DEFAULT '',
             created_at TEXT,
             updated_at TEXT
         );
@@ -90,6 +93,14 @@ def init_db():
         cursor.execute("ALTER TABLE samples ADD COLUMN has_electric INTEGER DEFAULT 0")
         cursor.execute("ALTER TABLE samples ADD COLUMN has_magnetic INTEGER DEFAULT 0")
 
+    # Dynamic migration for sintering time fields
+    try:
+        cursor.execute("SELECT sintering_start FROM samples LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE samples ADD COLUMN sintering_start TEXT DEFAULT ''")
+        cursor.execute("ALTER TABLE samples ADD COLUMN sintering_duration REAL DEFAULT NULL")
+        cursor.execute("ALTER TABLE samples ADD COLUMN sintering_end TEXT DEFAULT ''")
+
     conn.commit()
     conn.close()
 
@@ -125,17 +136,19 @@ def sample_to_dict(row):
 
 def get_all_samples(query=None):
     """获取所有样品，支持搜索"""
+    # 有烧制时间用烧制时间，没有则用创建时间，统一降序排列
+    ORDER_CLAUSE = "ORDER BY COALESCE(NULLIF(sintering_start, ''), created_at) DESC"
     conn = get_db()
     if query:
         q = f"%{query}%"
         rows = conn.execute(
-            """SELECT * FROM samples
+            f"""SELECT * FROM samples
                WHERE id LIKE ? OR target_product LIKE ? OR notes LIKE ? OR results LIKE ? OR growth_process LIKE ?
-               ORDER BY created_at DESC""",
+               {ORDER_CLAUSE}""",
             (q, q, q, q, q)
         ).fetchall()
     else:
-        rows = conn.execute("SELECT * FROM samples ORDER BY created_at DESC").fetchall()
+        rows = conn.execute(f"SELECT * FROM samples {ORDER_CLAUSE}").fetchall()
     conn.close()
     return [sample_to_dict(r) for r in rows]
 
@@ -181,8 +194,10 @@ def create_sample(data):
     conn = get_db()
     conn.execute(
         """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, growth_process,
-           element_ratios, actual_masses, notes, results, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           element_ratios, actual_masses, notes, results,
+           sintering_start, sintering_duration, sintering_end,
+           created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             data['id'],
             data.get('target_product', ''),
@@ -194,6 +209,9 @@ def create_sample(data):
             json.dumps(data.get('actual_masses', []), ensure_ascii=False),
             data.get('notes', ''),
             data.get('results', ''),
+            data.get('sintering_start', ''),
+            data.get('sintering_duration', None),
+            data.get('sintering_end', ''),
             now, now
         )
     )
@@ -212,7 +230,9 @@ def update_sample(sample_id, data):
 
     conn.execute(
         """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, growth_process=?,
-           element_ratios=?, actual_masses=?, notes=?, results=?, updated_at=?
+           element_ratios=?, actual_masses=?, notes=?, results=?,
+           sintering_start=?, sintering_duration=?, sintering_end=?,
+           updated_at=?
            WHERE id=?""",
         (
             new_id,
@@ -225,6 +245,9 @@ def update_sample(sample_id, data):
             json.dumps(data.get('actual_masses', []), ensure_ascii=False),
             data.get('notes', ''),
             data.get('results', ''),
+            data.get('sintering_start', ''),
+            data.get('sintering_duration', None),
+            data.get('sintering_end', ''),
             now,
             sample_id
         )

@@ -626,7 +626,65 @@ textarea::placeholder {
     font-weight: 500;
 }
 
-/* ---------- Element Calculator ---------- */
+/* ---------- Sintering Time Row ---------- */
+.sintering-time-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border-color);
+}
+
+.sintering-start-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.sintering-start-wrap input[type="datetime-local"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.btn-now {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.btn-now svg {
+    width: 14px;
+    height: 14px;
+}
+
+.sintering-end-display {
+    background: rgba(108, 92, 231, 0.05) !important;
+    color: var(--accent) !important;
+    font-weight: 500;
+    cursor: default;
+}
+
+/* datetime-local input styling */
+input[type="datetime-local"] {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    font-size: 21px;
+    outline: none;
+    transition: var(--transition);
+}
+
+input[type="datetime-local"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+
 .element-table {
     width: 100%;
     border-collapse: collapse;
