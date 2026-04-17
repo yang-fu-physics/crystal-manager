@@ -314,6 +314,10 @@ body {
     overflow-y: auto;
     flex: 1;
     padding: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-content: start;
+    gap: 4px;
 }
 
 .sample-item {
@@ -321,7 +325,6 @@ body {
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: var(--transition);
-    margin-bottom: 4px;
     border: 1px solid transparent;
 }
 
@@ -1519,4 +1522,23 @@ input[type="datetime-local"]:focus {
 
 .ms-todo-btn.ms-not-configured {
     opacity: 0.6;
+}
+/* --- Fullscreen Sidebar --- */
+.sidebar.is-fullscreen {
+    position: fixed;
+    top: var(--topbar-height);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: calc(100vh - var(--topbar-height)) !important;
+    z-index: 90;
+    transition: none;
+}
+
+.sidebar.is-fullscreen .sample-list {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+    padding: 16px;
 }

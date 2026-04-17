@@ -43,10 +43,17 @@
                     <input type="text" id="searchInput" placeholder="搜索样品编号、产物、备注..." autocomplete="off" data-i18n-placeholder="sidebar.searchPlaceholder">
                     <button class="clear-btn" id="clearSearchBtn" title="清除搜索" data-i18n-title="sidebar.clearSearch">&times;</button>
                 </div>
-                <button class="btn-primary btn-new" id="newSampleBtn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    <span data-i18n="sidebar.newSample">新建样品</span>
-                </button>
+                <div style="display: flex; gap: 8px; width: 100%;">
+                    <button class="btn-primary btn-new" id="newSampleBtn" style="flex: 1;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        <span data-i18n="sidebar.newSample">新建样品</span>
+                    </button>
+                    <button class="btn-outline" id="fullscreenListBtn" title="全屏显示" data-i18n-title="sidebar.fullscreenList" style="padding: 8px;">
+                        <svg id="fullscreenIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
             <ul class="sample-list" id="sampleList">
                 <!-- 动态填充 -->

@@ -154,6 +154,7 @@ const emptyState = document.getElementById('emptyState');
 const searchInput = document.getElementById('searchInput');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
 const newSampleBtn = document.getElementById('newSampleBtn');
+const fullscreenListBtn = document.getElementById('fullscreenListBtn');
 const saveBtn = document.getElementById('saveBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const deleteBtn = document.getElementById('deleteBtn');
@@ -243,11 +244,35 @@ function bindEvents() {
     // New sample
     newSampleBtn.addEventListener('click', () => createNewSample());
 
+    // Fullscreen list toggle
+    if (fullscreenListBtn) {
+        fullscreenListBtn.addEventListener('click', () => {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('fullscreenIcon');
+            sidebar.classList.toggle('is-fullscreen');
+            
+            if (sidebar.classList.contains('is-fullscreen')) {
+                fullscreenListBtn.title = '退出全屏';
+                icon.innerHTML = '<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>';
+            } else {
+                fullscreenListBtn.title = '全屏显示';
+                icon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
+            }
+        });
+    }
+
     // Sample list click - event delegation (handles special chars in IDs)
     sampleList.addEventListener('click', (e) => {
         const item = e.target.closest('.sample-item');
         if (item && item.dataset.id) {
             selectSample(item.dataset.id);
+            // Exit fullscreen if active
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('is-fullscreen') && fullscreenListBtn) {
+                sidebar.classList.remove('is-fullscreen');
+                fullscreenListBtn.title = '全屏显示';
+                document.getElementById('fullscreenIcon').innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
+            }
         }
     });
 
