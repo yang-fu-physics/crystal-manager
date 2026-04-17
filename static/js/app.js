@@ -470,7 +470,7 @@ async function loadSampleList(query = '') {
                     ${s.has_magnetic ? '<span class="badge badge-magn" data-i18n="form.badges.magnetic">' + t('form.badges.magnetic') + '</span>' : ''}
                 </div>
                 <div class="sample-item-product">${escapeHtml(s.target_product || '—')}</div>
-                <div class="sample-item-date">${formatDate(s.created_at)}</div>
+                <div class="sample-item-date">${formatDate(s.sintering_start || s.created_at)}</div>
             </li>
         `).join('');
     } catch (e) {
