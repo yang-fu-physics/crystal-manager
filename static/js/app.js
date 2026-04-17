@@ -159,6 +159,8 @@ const saveBtn = document.getElementById('saveBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const deleteBtn = document.getElementById('deleteBtn');
 const copyBtn = document.getElementById('copyBtn');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
 const formTitle = document.getElementById('formTitle');
 const sampleCountEl = document.getElementById('sampleCount');
 
@@ -276,11 +278,13 @@ function bindEvents() {
         }
     });
 
-    // Save / Cancel / Delete / Copy
+    // Save / Cancel / Delete / Copy / Prev / Next
     saveBtn.addEventListener('click', () => saveSample());
     cancelBtn.addEventListener('click', () => cancelEdit());
     deleteBtn.addEventListener('click', () => deleteSample());
     copyBtn.addEventListener('click', () => copySample());
+    prevBtn.addEventListener('click', () => navigateSample(1));   // 上一页：往列表后面走（旧数据）
+    nextBtn.addEventListener('click', () => navigateSample(-1));  // 下一页：往列表前面走（新数据）
 
     // Camera input (mobile) - photos
     const cameraInput = document.getElementById('cameraInput');
@@ -501,6 +505,30 @@ function highlightActive(id) {
     });
 }
 
+async function navigateSample(direction) {
+    if (!currentSampleId) return;
+    
+    const items = Array.from(document.querySelectorAll('.sample-item'));
+    if (items.length === 0) return;
+    
+    const currentIndex = items.findIndex(el => el.dataset.id === currentSampleId);
+    if (currentIndex === -1) return;
+    
+    let targetIndex = currentIndex + direction;
+    if (targetIndex < 0) {
+        showToast(t('messages.alreadyLast') || '已经是最后一个了 (最新)', 'info');
+        return;
+    }
+    if (targetIndex >= items.length) {
+        showToast(t('messages.alreadyFirst') || '已经是第一个了 (最早)', 'info');
+        return;
+    }
+    
+    const targetId = items[targetIndex].dataset.id;
+    await selectSample(targetId);
+    showToast((t('messages.switchedTo') || '已切换到样品 ') + targetId, 'success');
+}
+
 // ============================================================
 // Form Operations
 // ============================================================
@@ -629,6 +657,8 @@ function showForm(title, showDelete, scrollToTop = true) {
     formTitle.textContent = title;
     deleteBtn.style.display = showDelete ? 'inline-flex' : 'none';
     copyBtn.style.display = showDelete ? 'inline-flex' : 'none';
+    if (prevBtn) prevBtn.style.display = showDelete ? 'inline-flex' : 'none';
+    if (nextBtn) nextBtn.style.display = showDelete ? 'inline-flex' : 'none';
     isEditing = true;
 
     if (scrollToTop) {
