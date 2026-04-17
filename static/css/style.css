@@ -1246,6 +1246,8 @@ input[type="datetime-local"]:focus {
 
 /* --- Tablet (≤ 1350px) --- */
 @media (max-width: 1350px) {
+    body { font-size: 24px; }
+    input[type="text"], input[type="number"], textarea, select, input[type="datetime-local"], .toggle-btn { font-size: 24px; }
     :root {
         --sidebar-width: 420px;
     }
@@ -1266,7 +1268,6 @@ input[type="datetime-local"]:focus {
         flex-wrap: wrap;
         gap: 6px;
     }
-
     /* Smaller button text on tablet */
     .btn-primary,
     .btn-outline,
@@ -1282,27 +1283,75 @@ input[type="datetime-local"]:focus {
         --topbar-height: 52px;
     }
 
+    body {
+        font-size: 24px;
+    }
+
+    input[type="text"], input[type="number"], textarea, select, input[type="datetime-local"], .toggle-btn {
+        font-size: 24px;
+    }
+
     /* Show sidebar toggle button */
     .sidebar-toggle {
         display: flex;
         align-items: center;
+        padding: 4px;
     }
 
     /* Top bar becomes more compact */
     .top-bar {
-        padding: 0 12px;
+        padding: 0 8px;
+    }
+
+    .top-bar-left {
+        gap: 6px;
     }
 
     .top-bar h1 {
-        font-size: 21px;
+        font-size: 16px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 40vw;
     }
 
     .logo-icon {
-        font-size: 30px;
+        font-size: 20px;
     }
 
     .sample-count {
         display: none;
+    }
+
+    .top-bar-right {
+        gap: 4px;
+    }
+
+    .top-bar-right .btn-outline {
+        padding: 4px 8px;
+        font-size: 14px;
+    }
+
+    #langToggleBtn {
+        margin-right: 4px !important;
+    }
+
+    #msTodoLabel {
+        display: none;
+    }
+
+    #msTodoBtn {
+        margin-right: 4px !important;
+        padding: 4px 8px;
+    }
+
+    #logoutBtn span {
+        display: none; /* Hide the text */
+    }
+
+    #logoutBtn::before {
+        content: "🔒";
+        font-size: 14px;
     }
 
     /* Sidebar becomes a slide-in drawer */
@@ -1324,6 +1373,10 @@ input[type="datetime-local"]:focus {
         transform: translateX(0);
     }
 
+    .sidebar .sample-list {
+        grid-template-columns: 1fr;
+    }
+
     /* Main panel fills full width */
     .main-panel {
         width: 100%;
@@ -1331,15 +1384,24 @@ input[type="datetime-local"]:focus {
 
     /* Form adjustments */
     .sample-form {
-        padding: 12px 12px 80px;
+        padding: 10px 10px 80px;
     }
 
     .form-grid {
         grid-template-columns: 1fr;
     }
 
+    .sintering-time-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .toggle-group {
+        flex-wrap: wrap;
+    }
+
     .form-section {
-        padding: 14px 12px;
+        padding: 12px 10px;
     }
 
     /* Toolbar: title on top row, buttons on second row */
@@ -1361,7 +1423,7 @@ input[type="datetime-local"]:focus {
     .toolbar-right .btn-danger {
         flex: 1;
         min-width: 0;
-        font-size: 18px;
+        font-size: 16px;
         padding: 8px 6px;
         justify-content: center;
     }
@@ -1370,6 +1432,8 @@ input[type="datetime-local"]:focus {
     .element-calculator {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        margin: 0 -10px; 
+        padding: 0 10px;
     }
 
     .element-table {
@@ -1377,7 +1441,7 @@ input[type="datetime-local"]:focus {
     }
 
     .element-table input {
-        font-size: 18px;
+        font-size: 16px;
         padding: 6px 8px;
     }
 
@@ -1399,10 +1463,6 @@ input[type="datetime-local"]:focus {
     /* Photo delete always visible on touch */
     .photo-item .photo-delete {
         display: flex;
-    }
-
-    /* Slightly larger touch targets */
-    .photo-item .photo-delete {
         width: 30px;
         height: 30px;
         font-size: 24px;
@@ -1432,7 +1492,7 @@ input[type="datetime-local"]:focus {
 
     .toast {
         max-width: 100%;
-        font-size: 20px;
+        font-size: 16px;
     }
 
     /* File item: allow text to wrap */
@@ -1442,13 +1502,24 @@ input[type="datetime-local"]:focus {
     }
 
     .file-name {
-        font-size: 18px;
+        font-size: 16px;
         word-break: break-all;
+    }
+
+    .empty-icon {
+        font-size: 64px;
+    }
+
+    .empty-state h2 {
+        font-size: 22px;
+    }
+
+    .empty-state p {
+        font-size: 16px;
+        padding: 0 16px;
     }
 }
 
-
-/* ---------- Loading spinner ---------- */
 .loading-dot {
     display: inline-block;
     width: 8px;
@@ -1533,7 +1604,7 @@ input[type="datetime-local"]:focus {
     width: 100% !important;
     max-width: 100% !important;
     height: calc(100vh - var(--topbar-height)) !important;
-    z-index: 90;
+    z-index: 155 !important;
     transition: none;
 }
 
@@ -1541,4 +1612,72 @@ input[type="datetime-local"]:focus {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 12px;
     padding: 16px;
+}
+
+@media (max-width: 1350px) {
+    .sidebar.is-fullscreen .sample-list {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .sidebar.is-fullscreen .sample-list {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        padding: 14px;
+    }
+}
+
+@media (max-width: 600px) {
+    body {
+        font-size: 16px;
+    }
+    input[type="text"], input[type="number"], textarea, select, input[type="datetime-local"], .toggle-btn {
+        font-size: 16px;
+    }
+    .sidebar.is-fullscreen .sample-list {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        padding: 12px;
+    }
+}
+/* --- iPad / Tablet Advanced Typography (601px - 1350px) --- */
+@media (min-width: 601px) and (max-width: 1350px) {
+    body, 
+    input[type="text"], input[type="number"], textarea, select, input[type="datetime-local"], 
+    .element-table input, .file-name, .toast, .empty-state p {
+        font-size: 24px !important;
+    }
+
+    .btn-primary, .btn-outline, .btn-danger, .btn-accent, .btn-sm, .toggle-btn {
+        font-size: 22px !important;
+    }
+
+    .top-bar-right .btn-outline, #logoutBtn::before, .ms-todo-icon {
+        font-size: 22px !important;
+    }
+
+    .top-bar h1, .form-title {
+        font-size: 30px !important;
+    }
+
+    .section-title {
+        font-size: 26px !important;
+    }
+
+    .form-group label, .element-table th, .edx-table th, .element-calculator h3 {
+        font-size: 22px !important;
+    }
+
+    .sample-item-id {
+        font-size: 24px !important;
+    }
+
+    .sample-item-product, .sample-item-date {
+        font-size: 22px !important;
+    }
+
+    .logo-icon {
+        font-size: 32px !important;
+    }
 }
