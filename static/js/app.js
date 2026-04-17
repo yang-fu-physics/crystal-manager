@@ -535,7 +535,7 @@ async function navigateSample(direction) {
     }
     
     const targetId = items[targetIndex].dataset.id;
-    await selectSample(targetId);
+    await selectSample(targetId, false);
     showToast((t('messages.switchedTo') || '已切换到样品 ') + targetId, 'success');
 }
 
@@ -759,7 +759,7 @@ async function saveSample() {
         isNewSample = false;
         originalData = JSON.parse(JSON.stringify(saved));
         fillForm(saved);
-        showForm(t('form.editSampleTitle'), true);
+        showForm(t('form.editSampleTitle'), true, false);
         await loadSampleList(searchInput.value);
         highlightActive(saved.id);
         showToast(t('messages.saveSuccess'), 'success');
