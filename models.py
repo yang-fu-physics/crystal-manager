@@ -147,7 +147,7 @@ def sample_to_dict(row):
 def get_all_samples(query=None):
     """获取所有样品，支持搜索"""
     # 有烧制时间用烧制时间，没有则用创建时间，统一降序排列
-    ORDER_CLAUSE = "ORDER BY COALESCE(NULLIF(sintering_start, ''), created_at) DESC"
+    ORDER_CLAUSE = "ORDER BY COALESCE(NULLIF(sintering_start, ''), created_at) DESC, created_at DESC"
     conn = get_db()
     if query:
         q = f"%{query}%"

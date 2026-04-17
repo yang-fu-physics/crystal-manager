@@ -153,7 +153,7 @@ def _get_default_task_list_id(token):
     return lists[0]["id"]
 
 
-def create_todo_task(token, list_id, sample_id, sintering_end):
+def create_todo_task(token, list_id, sample_id, sintering_end, target_product=""):
     """创建一个 To Do 任务并设置提醒
 
     Args:
@@ -171,7 +171,7 @@ def create_todo_task(token, list_id, sample_id, sintering_end):
         return None
 
     task_body = {
-        "title": f"🔥 样品 {sample_id} 烧制完成",
+        "title": f"样品 {sample_id} {target_product} 烧制".strip(),
         "body": {
             "content": f"样品 {sample_id} 的烧制预计在此时间完成，请及时处理。",
             "contentType": "text",
@@ -203,7 +203,7 @@ def create_todo_task(token, list_id, sample_id, sintering_end):
     return task["id"]
 
 
-def update_todo_task(token, list_id, task_id, sample_id, sintering_end):
+def update_todo_task(token, list_id, task_id, sample_id, sintering_end, target_product=""):
     """更新已有的 To Do 任务的提醒时间
 
     Returns:
@@ -215,7 +215,7 @@ def update_todo_task(token, list_id, task_id, sample_id, sintering_end):
         return False
 
     patch_body = {
-        "title": f"🔥 样品 {sample_id} 烧制完成",
+        "title": f"样品 {sample_id} {target_product} 烧制".strip(),
         "isReminderOn": True,
         "reminderDateTime": {
             "dateTime": reminder_dt.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -263,13 +263,14 @@ def delete_todo_task(token, list_id, task_id):
 # 高级接口: 创建或更新 To Do 任务
 # ============================================================
 
-def create_or_update_todo(sample_id, sintering_end, db_module):
+def create_or_update_todo(sample_id, sintering_end, db_module, target_product=""):
     """根据烧制结束时间创建或更新 Microsoft To Do 任务
 
     Args:
         sample_id: 样品编号
         sintering_end: 烧制结束时间字符串
         db_module: models 模块引用（用于读写 todo_tasks 表）
+        target_product: 目标材料名称
 
     Returns:
         (success: bool, message: str)
@@ -286,17 +287,14 @@ def create_or_update_todo(sample_id, sintering_end, db_module):
         if not list_id:
             return False, "未找到 To Do 任务列表"
 
-        # 查询是否已有关联的 todo task
         existing = db_module.get_todo_task(sample_id)
 
         if existing:
-            # 更新已有任务
             try:
-                update_todo_task(token, list_id, existing["task_id"], sample_id, sintering_end)
+                update_todo_task(token, list_id, existing["task_id"], sample_id, sintering_end, target_product)
             except http_requests.exceptions.HTTPError as e:
                 if e.response is not None and e.response.status_code == 404:
-                    # 任务已被手动删除，重新创建
-                    task_id = create_todo_task(token, list_id, sample_id, sintering_end)
+                    task_id = create_todo_task(token, list_id, sample_id, sintering_end, target_product)
                     if task_id:
                         db_module.upsert_todo_task(sample_id, task_id, sintering_end)
                 else:
@@ -304,8 +302,7 @@ def create_or_update_todo(sample_id, sintering_end, db_module):
             else:
                 db_module.upsert_todo_task(sample_id, existing["task_id"], sintering_end)
         else:
-            # 创建新任务
-            task_id = create_todo_task(token, list_id, sample_id, sintering_end)
+            task_id = create_todo_task(token, list_id, sample_id, sintering_end, target_product)
             if task_id:
                 db_module.upsert_todo_task(sample_id, task_id, sintering_end)
 

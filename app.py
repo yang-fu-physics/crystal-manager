@@ -184,7 +184,7 @@ def create_sample():
     sintering_end = data.get('sintering_end', '')
     if sintering_end:
         try:
-            ok, msg = todo_integration.create_or_update_todo(data['id'], sintering_end, models)
+            ok, msg = todo_integration.create_or_update_todo(data['id'], sintering_end, models, data.get('target_product', ''))
             todo_synced = ok
             todo_msg = msg
         except Exception as e:
@@ -233,7 +233,7 @@ def update_sample(sample_id):
     new_sintering_end = data.get('sintering_end', '')
     if new_sintering_end and new_sintering_end != old_sintering_end:
         try:
-            ok, msg = todo_integration.create_or_update_todo(new_id, new_sintering_end, models)
+            ok, msg = todo_integration.create_or_update_todo(new_id, new_sintering_end, models, data.get('target_product', ''))
             todo_synced = ok
             todo_msg = msg
         except Exception as e:
