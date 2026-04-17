@@ -180,10 +180,16 @@
 
                 <!-- 元素比例 & 质量计算 -->
                 <section class="form-section">
-                    <h3 class="section-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
-                        <span data-i18n="form.sections.calculator">元素比例 & 质量计算</span>
-                    </h3>
+                    <div class="section-header-flex">
+                        <h3 class="section-title" style="margin-bottom: 0;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                            <span data-i18n="form.sections.calculator">元素比例 & 质量计算</span>
+                        </h3>
+                        <div class="calc-context-info">
+                            <span class="calc-info-badge" id="calcSampleIdDisplay">-</span>
+                            <span class="calc-info-badge" id="calcTargetProductDisplay">-</span>
+                        </div>
+                    </div>
                     <div class="element-calculator">
                         <table class="element-table" id="elementTable">
                             <thead>

@@ -510,6 +510,29 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+.section-header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.calc-context-info {
+    display: flex;
+    gap: 8px;
+}
+
+.calc-info-badge {
+    font-size: 16px;
+    padding: 4px 10px;
+    background: rgba(108, 92, 231, 0.08);
+    color: var(--accent);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
 .section-title {
     font-size: 23px;
     font-weight: 600;
@@ -1673,6 +1696,11 @@ input[type="datetime-local"]:focus {
 
     .sample-item-product, .sample-item-date {
         font-size: 22px !important;
+    }
+
+    .calc-info-badge {
+        font-size: 22px !important;
+        padding: 4px 12px;
     }
 
     .logo-icon {

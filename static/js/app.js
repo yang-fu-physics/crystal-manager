@@ -356,6 +356,9 @@ function bindEvents() {
     sinteringStartInput.addEventListener('change', updateSinteringEnd);
     sinteringDurationInput.addEventListener('input', updateSinteringEnd);
 
+    sampleIdInput.addEventListener('input', updateCalcDisplays);
+    targetProductInput.addEventListener('input', updateCalcDisplays);
+
     // Element calculator
     addElementBtn.addEventListener('click', () => addElementRow());
     calculateBtn.addEventListener('click', () => calculateMass());
@@ -436,6 +439,13 @@ function bindTextareaResize() {
     });
 }
 
+
+function updateCalcDisplays() {
+    const sId = document.getElementById('calcSampleIdDisplay');
+    const tp = document.getElementById('calcTargetProductDisplay');
+    if (sId) sId.textContent = sampleIdInput.value || '-';
+    if (tp) tp.textContent = targetProductInput.value || '-';
+}
 
 // ============================================================
 // Sample List
@@ -574,6 +584,7 @@ function createNewSample() {
 
     showForm(t('form.newSampleTitle'), false);
     highlightActive(null);
+    updateCalcDisplays();
 }
 
 function fillForm(sample) {
@@ -644,6 +655,7 @@ function fillForm(sample) {
 
     // 其他文件
     renderOtherFiles(sample.other_files || []);
+    updateCalcDisplays();
 }
 
 function showForm(title, showDelete, scrollToTop = true) {
