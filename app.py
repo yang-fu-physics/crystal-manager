@@ -15,6 +15,7 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config
 import models
+import todo_integration
 import backup as _backup_module
 
 # 从上级目录导入元素摩尔质量表
@@ -40,7 +41,7 @@ logging.basicConfig(
 @app.before_request
 def check_login():
     """所有请求前检查登录状态，白名单除外"""
-    allowed = ['login_page', 'do_login', 'static']
+    allowed = ['login_page', 'do_login', 'static', 'auth_microsoft', 'auth_callback']
     if request.endpoint in allowed:
         return
     if not session.get('logged_in'):
@@ -97,6 +98,54 @@ def do_logout():
 
 
 # ============================================================
+# Microsoft To Do OAuth2 路由
+# ============================================================
+
+@app.route('/auth/microsoft')
+def auth_microsoft():
+    """开始 Microsoft OAuth2 授权流程"""
+    if not todo_integration.is_configured():
+        return jsonify({'error': '请先在 config.py 中配置 MS_CLIENT_ID 和 MS_CLIENT_SECRET'}), 400
+    auth_url = todo_integration.get_auth_url()
+    return redirect(auth_url)
+
+
+@app.route('/auth/callback')
+def auth_callback():
+    """Microsoft OAuth2 回调"""
+    code = request.args.get('code')
+    error = request.args.get('error')
+
+    if error:
+        return f'<h3>授权失败</h3><p>{error}: {request.args.get("error_description", "")}</p><a href="/">返回</a>', 400
+
+    if not code:
+        return '<h3>授权失败</h3><p>未收到授权码</p><a href="/">返回</a>', 400
+
+    success, err_msg = todo_integration.acquire_token_by_code(code)
+    if success:
+        return redirect('/')
+    else:
+        return f'<h3>授权失败</h3><p>{err_msg}</p><a href="/">返回</a>', 400
+
+
+@app.route('/api/ms-status', methods=['GET'])
+def ms_status():
+    """返回 Microsoft To Do 连接状态"""
+    return jsonify({
+        'configured': todo_integration.is_configured(),
+        'connected': todo_integration.is_connected(),
+    })
+
+
+@app.route('/api/ms-disconnect', methods=['POST'])
+def ms_disconnect():
+    """断开 Microsoft To Do 连接"""
+    todo_integration.disconnect()
+    return jsonify({'success': True})
+
+
+# ============================================================
 # 页面路由
 # ============================================================
 
@@ -128,7 +177,24 @@ def create_sample():
         return jsonify({'error': f'样品编号 {data["id"]} 已存在'}), 409
 
     sample = models.create_sample(data)
-    return jsonify(sample), 201
+
+    # 新建样品时如果有结束时间，也同步到 To Do
+    todo_synced = False
+    todo_msg = ''
+    sintering_end = data.get('sintering_end', '')
+    if sintering_end:
+        try:
+            ok, msg = todo_integration.create_or_update_todo(data['id'], sintering_end, models)
+            todo_synced = ok
+            todo_msg = msg
+        except Exception as e:
+            app.logger.error(f'同步 To Do 失败: {e}')
+            todo_msg = str(e)
+
+    result = dict(sample) if isinstance(sample, dict) else sample
+    result['todo_synced'] = todo_synced
+    result['todo_msg'] = todo_msg
+    return jsonify(result), 201
 
 
 @app.route('/api/samples/<sample_id>', methods=['GET'])
@@ -156,8 +222,28 @@ def update_sample(sample_id):
         if check:
             return jsonify({'error': f'样品编号 {new_id} 已存在'}), 409
 
+    # 记录旧的 sintering_end 用于后续比较
+    old_sintering_end = existing.get('sintering_end', '')
+
     sample = models.update_sample(sample_id, data)
-    return jsonify(sample)
+
+    # 同步 Microsoft To Do（仅当结束时间有变化时）
+    todo_synced = False
+    todo_msg = ''
+    new_sintering_end = data.get('sintering_end', '')
+    if new_sintering_end and new_sintering_end != old_sintering_end:
+        try:
+            ok, msg = todo_integration.create_or_update_todo(new_id, new_sintering_end, models)
+            todo_synced = ok
+            todo_msg = msg
+        except Exception as e:
+            app.logger.error(f'同步 To Do 失败: {e}')
+            todo_msg = str(e)
+
+    result = dict(sample) if isinstance(sample, dict) else sample
+    result['todo_synced'] = todo_synced
+    result['todo_msg'] = todo_msg
+    return jsonify(result)
 
 
 @app.route('/api/samples/<sample_id>', methods=['DELETE'])

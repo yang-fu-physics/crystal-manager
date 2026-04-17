@@ -101,6 +101,16 @@ def init_db():
         cursor.execute("ALTER TABLE samples ADD COLUMN sintering_duration REAL DEFAULT NULL")
         cursor.execute("ALTER TABLE samples ADD COLUMN sintering_end TEXT DEFAULT ''")
 
+    # todo_tasks 表: 记录 sample_id ↔ Microsoft To Do task_id 映射
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS todo_tasks (
+            sample_id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            sintering_end TEXT,
+            updated_at TEXT
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -403,3 +413,43 @@ def delete_other_file(file_id):
     conn.execute("DELETE FROM other_files WHERE id = ?", (file_id,))
     conn.commit()
     conn.close()
+
+
+# ============================================================
+# To Do 任务映射 (todo_tasks 表)
+# ============================================================
+
+def get_todo_task(sample_id):
+    """获取样品关联的 To Do 任务记录"""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM todo_tasks WHERE sample_id = ?", (sample_id,)).fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
+
+
+def upsert_todo_task(sample_id, task_id, sintering_end):
+    """插入或更新 To Do 任务映射"""
+    now = datetime.now().isoformat()
+    conn = get_db()
+    conn.execute(
+        """INSERT INTO todo_tasks (sample_id, task_id, sintering_end, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(sample_id) DO UPDATE SET
+               task_id = excluded.task_id,
+               sintering_end = excluded.sintering_end,
+               updated_at = excluded.updated_at""",
+        (sample_id, task_id, sintering_end, now)
+    )
+    conn.commit()
+    conn.close()
+
+
+def delete_todo_task(sample_id):
+    """删除 To Do 任务映射"""
+    conn = get_db()
+    conn.execute("DELETE FROM todo_tasks WHERE sample_id = ?", (sample_id,))
+    conn.commit()
+    conn.close()
+

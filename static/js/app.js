@@ -41,8 +41,10 @@ const translations = {
             recognizing: "正在调用 AI 识别...", recognizeFailed: "识别失败", edxSuccess: "EDX 识别完成",
             noData: "未识别到元素数据", recognizeErrorPrefix: "识别失败: ", confirmDeleteFile: "确定要删除此文件吗？", confirmLogout: "确定要退出登录吗？",
             edxHeader: { element: "元素", wt: "质量百分比 (%)", at: "原子百分比 (%)", nodata: "暂无识别数据，请点击「AI 识别」按钮" },
-            aiBtn: "🤖 AI 识别", delBtn: "× 删除"
-        }
+            aiBtn: "🤖 AI 识别", delBtn: "× 删除",
+            todoSynced: "已同步到 Microsoft To Do", todoSyncFailed: "To Do 同步失败: {0}"
+        },
+        msTodo: { connect: "连接 To Do", connected: "已连接 To Do", disconnect: "断开 To Do", notConfigured: "请先在 config.py 配置 MS_CLIENT_ID", confirmDisconnect: "确定要断开 Microsoft To Do 连接吗？" }
     },
     en: {
         title: "Crystal Sample Management",
@@ -74,8 +76,10 @@ const translations = {
             recognizing: "Calling AI for recognition...", recognizeFailed: "Recognition failed", edxSuccess: "EDX Recognition complete",
             noData: "No element data identified", recognizeErrorPrefix: "Recognition failed: ", confirmDeleteFile: "Are you sure you want to delete this file?", confirmLogout: "Are you sure you want to logout?",
             edxHeader: { element: "Element", wt: "Weight %", at: "Atomic %", nodata: "No data, click 'AI Recognition' button" },
-            aiBtn: "🤖 AI Recognize", delBtn: "× Delete"
-        }
+            aiBtn: "🤖 AI Recognize", delBtn: "× Delete",
+            todoSynced: "Synced to Microsoft To Do", todoSyncFailed: "To Do sync failed: {0}"
+        },
+        msTodo: { connect: "Connect To Do", connected: "Connected", disconnect: "Disconnect To Do", notConfigured: "Please configure MS_CLIENT_ID in config.py", confirmDisconnect: "Disconnect Microsoft To Do?" }
     }
 };
 
@@ -217,6 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadSampleList();
     bindEvents();
     bindTextareaResize();
+    checkMsStatus(); // 检查 Microsoft To Do 连接状态
 });
 
 // ============================================================
@@ -691,6 +696,16 @@ async function saveSample() {
         await loadSampleList(searchInput.value);
         highlightActive(saved.id);
         showToast(t('messages.saveSuccess'), 'success');
+
+        // 显示 To Do 同步结果
+        if (saved.todo_synced) {
+            showToast(t('messages.todoSynced'), 'info');
+        } else if (saved.todo_msg && saved.todo_msg !== '') {
+            // 仅在有同步尝试时才显示失败
+            if (saved.todo_msg !== '未连接 Microsoft To Do') {
+                showToast(t('messages.todoSyncFailed', saved.todo_msg), 'warning');
+            }
+        }
     } catch (e) {
         console.error(e);
         showToast(e.message, 'error');
@@ -1321,6 +1336,67 @@ async function logout() {
 }
 
 window.logout = logout;
+
+// ============================================================
+// Microsoft To Do Integration
+// ============================================================
+
+async function checkMsStatus() {
+    try {
+        const resp = await fetch('/api/ms-status');
+        const data = await resp.json();
+        const btn = document.getElementById('msTodoBtn');
+        const icon = document.getElementById('msTodoIcon');
+        const label = document.getElementById('msTodoLabel');
+        if (!btn) return;
+
+        if (!data.configured) {
+            btn.classList.add('ms-not-configured');
+            btn.classList.remove('ms-connected');
+            icon.textContent = '📋';
+            label.textContent = t('msTodo.connect');
+        } else if (data.connected) {
+            btn.classList.add('ms-connected');
+            btn.classList.remove('ms-not-configured');
+            icon.textContent = '✅';
+            label.textContent = t('msTodo.connected');
+        } else {
+            btn.classList.remove('ms-connected', 'ms-not-configured');
+            icon.textContent = '📋';
+            label.textContent = t('msTodo.connect');
+        }
+    } catch (e) {
+        console.error('检查 MS To Do 状态失败', e);
+    }
+}
+
+async function handleMsTodo() {
+    try {
+        const resp = await fetch('/api/ms-status');
+        const data = await resp.json();
+
+        if (!data.configured) {
+            showToast(t('msTodo.notConfigured'), 'warning');
+            return;
+        }
+
+        if (data.connected) {
+            // 已连接，提供断开选项
+            if (confirm(t('msTodo.confirmDisconnect'))) {
+                await fetch('/api/ms-disconnect', { method: 'POST' });
+                showToast(t('msTodo.disconnect'), 'info');
+                checkMsStatus();
+            }
+        } else {
+            // 未连接，开始授权
+            window.location.href = '/auth/microsoft';
+        }
+    } catch (e) {
+        showToast('Microsoft To Do 操作失败', 'error');
+    }
+}
+
+window.handleMsTodo = handleMsTodo;
 
 // ============================================================
 // Sintering Time Helpers

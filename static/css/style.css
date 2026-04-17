@@ -1492,3 +1492,31 @@ input[type="datetime-local"]:focus {
     margin-bottom: 12px;
     opacity: 0.3;
 }
+
+/* ---------- Microsoft To Do Button ---------- */
+.ms-todo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: var(--transition);
+    margin-right: 8px;
+}
+
+.ms-todo-btn .ms-todo-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.ms-todo-btn.ms-connected {
+    background: var(--success-bg);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.ms-todo-btn.ms-connected:hover {
+    background: rgba(39, 174, 96, 0.15);
+}
+
+.ms-todo-btn.ms-not-configured {
+    opacity: 0.6;
+}

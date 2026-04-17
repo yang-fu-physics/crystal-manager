@@ -21,6 +21,10 @@
         </div>
         <div class="top-bar-right">
             <button class="btn-outline btn-sm" id="langToggleBtn" style="margin-right: 12px;" onclick="toggleLanguage()">En / 中</button>
+            <button class="btn-outline btn-sm ms-todo-btn" id="msTodoBtn" onclick="handleMsTodo()" title="Microsoft To Do">
+                <span class="ms-todo-icon" id="msTodoIcon">📋</span>
+                <span id="msTodoLabel" data-i18n="msTodo.connect">连接 To Do</span>
+            </button>
             <span class="sample-count" id="sampleCount">0 个样品</span>
             <button class="btn-outline btn-sm" id="logoutBtn" onclick="logout()" title="退出登录" data-i18n-title="nav.logoutTitle"><span data-i18n="nav.logout">🔒 退出</span></button>
         </div>

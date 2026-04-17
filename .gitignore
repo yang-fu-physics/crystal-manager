@@ -9,6 +9,9 @@ uploads/
 
 # 备份数据
 backups/
+
+# Microsoft To Do token cache
+ms_token_cache.bin
 # Python
 __pycache__/
 *.pyc
