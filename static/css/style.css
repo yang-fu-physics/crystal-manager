@@ -634,9 +634,7 @@ textarea::placeholder {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 16px;
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px dashed var(--border-color);
+    margin-bottom: 16px;
 }
 
 .sintering-start-wrap {
