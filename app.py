@@ -569,6 +569,23 @@ def _create_thumbnail(filepath, max_size=(300, 300)):
 @app.route('/uploads/<path:filename>')
 def serve_upload(filename):
     use_thumb = request.args.get('thumb') == '1'
+    original_filename = None
+
+    # 获取原始文件名
+    try:
+        conn = models.get_db()
+        # 将 URL 路径转为本地操作系统路径格式进行匹配，避免部分反斜杠问题，同时也支持 /
+        query_path = f"%{filename.replace('/', os.sep)}"
+        for table in ['photos', 'edx_images', 'data_files', 'other_files']:
+            query = f"SELECT filename FROM {table} WHERE filepath LIKE ?"
+            row = conn.execute(query, (query_path,)).fetchone()
+            if row:
+                original_filename = row['filename']
+                break
+        conn.close()
+    except Exception as e:
+        app.logger.error(f"Failed to query original filename: {e}")
+
     if use_thumb:
         parts = filename.split('/')
         if len(parts) > 0:
@@ -578,8 +595,15 @@ def serve_upload(filename):
             full_thumb_path = os.path.join(config.UPLOAD_FOLDER, thumb_filename.replace('/', os.sep))
             if os.path.exists(full_thumb_path):
                 # Send using POSIX path for Flask security
+                if original_filename:
+                    thumb_download_name = f"thumb_{original_filename}"
+                    return send_from_directory(config.UPLOAD_FOLDER, thumb_filename, download_name=thumb_download_name)
                 return send_from_directory(config.UPLOAD_FOLDER, thumb_filename)
                 
+    if original_filename:
+        # 如果是数据文件或普通文件，也可以通过 as_attachment 让用户直接点击链接直接下载，不过前端已经加了 download 属性
+        return send_from_directory(config.UPLOAD_FOLDER, filename, download_name=original_filename)
+
     return send_from_directory(config.UPLOAD_FOLDER, filename)
 
 
