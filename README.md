@@ -6,14 +6,16 @@ A local web application designed to manage all information regarding samples obt
 
 ## Features
 
-- **Sample Management** — Create, view, edit, delete, and search samples.
-- **Basic Info** — Sample ID, Target Product, Success/Fail/Pending, Growth Process, Results, Notes.
-- **Mass Calculation** — Input element molar ratios + mass of one reference element to automatically calculate the required mass for other elements.
-- **Photos** — Multiple photo uploads (supports camera capture), automatic thumbnail generation (lazy-loaded), click to view original images.
-- **EDX Analysis** — Upload EDX spectrum images (auto generates thumbnails) → uses GPT Vision API to automatically recognize elemental composition.
-- **Data Files** — Upload/download/delete `.dat`, `.csv`, `.txt`, and other data files.
-- **Other Files** — Upload attachments of any format.
-- **Auto Backup** — Immediate backup on startup + scheduled incremental backups, CLI tool for easy restoration.
+- **Sample Management** — Create, view, edit, delete, and search samples by status or other parameters.
+- **Basic Info** — Sample ID, Target Product, Status (Success/Fail/Pending/Growing), Unique Measurements (Electric/Magnetic), Growth Process & Sintering Time Tracking, Results, Notes.
+- **Enhanced Navigation & UX** — One-click fast previous/next navigation, auto-resizing textareas, intelligent anti-scroll during saves, and smart duplication that preserves custom reference elements.
+- **Mass Calculation** — Intuitive display of current context (ID/Product); input element molar ratios + mass of one reference element to automatically calculate the required mass for other elements.
+- **Photos** — Multiple photo uploads (supports camera capture), automatic lazy-loaded thumbnails, zoom preview, and perfectly restored original filenames upon download.
+- **EDX Analysis** — Upload EDX spectrum images (auto-generates thumbnails) → uses GPT Vision API to automatically recognize elemental composition.
+- **Data & Other Files** — Upload/download `.dat/.csv/.txt` and any other ad-hoc attachment files with reliable strict original filename retention.
+- **Microsoft To Do Integration** — Bind your Microsoft account to automatically sync sintering end times directly to To Do for robust cross-device reminders.
+- **Bilingual & Responsive UI** — Seamless dynamic i18n switching (EN/ZH); deep layout and touch optimizations for mobile and tablet, plus a widescreen fullscreen mode.
+- **Auto Backup** — Immediate automatic backup on startup + scheduled incremental hot backups, alongside a comprehensive CLI restoration utility.
 
 ## Tech Stack
 
