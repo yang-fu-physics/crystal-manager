@@ -750,11 +750,23 @@ async function saveSample() {
         }
 
         if (!resp.ok) {
-            const err = await resp.json();
-            throw new Error(err.error || t('messages.saveFailed'));
+            let errMessage = t('messages.saveFailed');
+            try {
+                const err = await resp.json();
+                errMessage = err.error || errMessage;
+            } catch (e) {
+                // Ignore JSON parse error, server returned HTML (e.g. 502 Gateway, or 500 error page)
+                errMessage += ` (HTTP ${resp.status})`;
+            }
+            throw new Error(errMessage);
         }
 
-        const saved = await resp.json();
+        let saved;
+        try {
+            saved = await resp.json();
+        } catch (e) {
+            throw new Error("保存失败：服务器返回了无效的数据格式");
+        }
         currentSampleId = saved.id;
         isNewSample = false;
         originalData = JSON.parse(JSON.stringify(saved));

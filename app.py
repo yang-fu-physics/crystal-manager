@@ -8,6 +8,7 @@ import base64
 import json
 import time
 from flask import Flask, request, jsonify, render_template, send_from_directory, session, redirect, url_for
+from werkzeug.exceptions import HTTPException
 from functools import wraps
 from PIL import Image
 
@@ -33,6 +34,20 @@ logging.basicConfig(
     format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
 )
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # pass through HTTP errors
+    if isinstance(e, HTTPException):
+        # Return JSON instead of HTML for API routes
+        if request.path.startswith('/api/'):
+            return jsonify(error=e.description), e.code
+        return e
+    # now you're handling non-HTTP exceptions only
+    app.logger.error(f"Unhandled Exception: {e}", exc_info=True)
+    if request.path.startswith('/api/'):
+        return jsonify(error="服务器内部错误: " + str(e)), 500
+    return "服务器内部错误", 500
 
 # ============================================================
 # 登录验证
@@ -177,6 +192,8 @@ def create_sample():
         return jsonify({'error': f'样品编号 {data["id"]} 已存在'}), 409
 
     sample = models.create_sample(data)
+    if sample is None:
+        return jsonify({'error': '创建失败：未找到刚创建的样品数据'}), 500
 
     # 新建样品时如果有结束时间，也同步到 To Do
     todo_synced = False
@@ -226,6 +243,8 @@ def update_sample(sample_id):
     old_sintering_end = existing.get('sintering_end', '')
 
     sample = models.update_sample(sample_id, data)
+    if sample is None:
+        return jsonify({'error': '更新失败：未能获取更新后的样品数据'}), 500
 
     # 同步 Microsoft To Do（仅当结束时间有变化时）
     todo_synced = False
