@@ -177,7 +177,21 @@ def index():
 def list_samples():
     query = request.args.get('q', '').strip()
     samples = models.get_all_samples(query if query else None)
-    return jsonify(samples)
+    
+    # 添加禁用缓存的 Header，防止浏览器缓存旧数据
+    response = jsonify(samples)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
+@app.route('/api/samples/sync_todo', methods=['POST'])
+def sync_todo():
+    """手动或前端自动触发的 To Do 同步"""
+    try:
+        completed = todo_integration.sync_growing_tasks(models)
+        return jsonify({'success': True, 'completed_samples': completed})
+    except Exception as e:
+        app.logger.error(f"Sync todo failed: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/samples', methods=['POST'])
@@ -219,7 +233,9 @@ def get_sample(sample_id):
     sample = models.get_sample(sample_id)
     if not sample:
         return jsonify({'error': '样品不存在'}), 404
-    return jsonify(sample)
+    response = jsonify(sample)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
 
 
 @app.route('/api/samples/<sample_id>', methods=['PUT'])

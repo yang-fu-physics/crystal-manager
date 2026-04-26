@@ -312,6 +312,46 @@ def create_or_update_todo(sample_id, sintering_end, db_module, target_product=""
         logger.error(f"同步 To Do 失败: {e}")
         return False, f"同步失败: {str(e)}"
 
+def sync_growing_tasks(db_module):
+    """同步生长中样品的 To Do 任务状态，如果任务在 To Do 中已完成，则更新样品状态为 生长完成(4)"""
+    newly_completed = []
+    if not is_connected(): return newly_completed
+    token = get_access_token()
+    if not token: return newly_completed
+    list_id = _get_default_task_list_id(token)
+    if not list_id: return newly_completed
+
+    conn = db_module.get_db()
+    try:
+        growing_samples = conn.execute("SELECT id FROM samples WHERE is_successful=3").fetchall()
+        for row in growing_samples:
+            sample_id = row['id']
+            task_row = conn.execute("SELECT task_id FROM todo_tasks WHERE sample_id=?", (sample_id,)).fetchone()
+            if task_row:
+                task_id = task_row['task_id']
+                try:
+                    headers = {"Authorization": f"Bearer {token}"}
+                    resp = http_requests.get(
+                        f"{GRAPH_BASE}/me/todo/lists/{list_id}/tasks/{task_id}",
+                        headers=headers,
+                        timeout=10,
+                    )
+                    if resp.status_code == 200:
+                        task_data = resp.json()
+                        if task_data.get("status") == "completed":
+                            # 任务已完成，自动更新状态为 4 (生长完成)
+                            conn.execute("UPDATE samples SET is_successful=4 WHERE id=?", (sample_id,))
+                            newly_completed.append(sample_id)
+                            logger.info(f"Sample {sample_id} status auto-updated to 'Done' (4) because To Do task is completed.")
+                except Exception as e:
+                    logger.warning(f"Failed to check task status for sample {sample_id}: {e}")
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Error during sync_growing_tasks: {e}")
+    finally:
+        conn.close()
+        
+    return newly_completed
 
 # ============================================================
 # 工具函数

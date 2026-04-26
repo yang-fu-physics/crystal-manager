@@ -315,9 +315,14 @@ body {
     flex: 1;
     padding: 8px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr; /* 默认单列 */
     align-content: start;
     gap: 4px;
+}
+
+.sidebar.is-fullscreen .sample-list {
+    grid-template-columns: 1fr 1fr; /* 全屏状态双列 */
+    gap: 8px;
 }
 
 .sample-item {
@@ -384,6 +389,11 @@ body {
     background: #0984e3;
     box-shadow: 0 0 5px rgba(9, 132, 227, 0.5);
     animation: pulse-blue 1.8s ease-in-out infinite;
+}
+
+.status-dot.done {
+    background: #8e44ad;
+    box-shadow: 0 0 5px rgba(142, 68, 173, 0.4);
 }
 
 @keyframes pulse-blue {

@@ -24,7 +24,7 @@ const translations = {
                        sinteringStart: "开始烧制时间", sinteringDuration: "烧制耗时 (小时)", sinteringEnd: "结束时间",
                        sinteringNowBtn: "当前时间", sinteringNowTitle: "设为当前时间" },
             placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcess: "描述晶体的生长方法、温度曲线、时间等参数...", results: "实验结果描述...", notes: "其他需要记录的信息..." },
-            status: { success: "成功", fail: "失败", pending: "待定", growing: "生长中" },
+            status: { success: "成功", fail: "失败", pending: "待定", growing: "生长中", done: "生长完成" },
             measurements: { electric: "电学测量", magnetic: "磁性测量" },
             badges: { electric: "电", magnetic: "磁" },
             calc: { symbol: "元素符号", ratio: "摩尔比", molarMass: "摩尔质量 (g/mol)", mass: "实际质量 (g)", reference: "参考", addElement: "添加元素", calcMass: "计算质量" },
@@ -59,7 +59,7 @@ const translations = {
                        sinteringStart: "Sintering Start", sinteringDuration: "Duration (hours)", sinteringEnd: "End Time",
                        sinteringNowBtn: "Now", sinteringNowTitle: "Set to current time" },
             placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcess: "Describe growth method, temp profile, time, etc...", results: "Experiment results...", notes: "Any other notes..." },
-            status: { success: "Success", fail: "Fail", pending: "Pending", growing: "Growing" },
+            status: { success: "Success", fail: "Fail", pending: "Pending", growing: "Growing", done: "Done" },
             measurements: { electric: "Electric", magnetic: "Magnetic" },
             badges: { electric: "Elec", magnetic: "Mag" },
             calc: { symbol: "Symbol", ratio: "Mol Ratio", molarMass: "Molar Mass (g/mol)", mass: "Actual Mass (g)", reference: "Ref", addElement: "Add Element", calcMass: "Calculate Mass" },
@@ -176,6 +176,7 @@ const togglePending = document.getElementById('togglePending');
 const toggleElectric = document.getElementById('toggleElectric');
 const toggleMagnetic = document.getElementById('toggleMagnetic');
 const toggleGrowing = document.getElementById('toggleGrowing');
+const toggleDone = document.getElementById('toggleDone');
 
 // Sintering time
 const sinteringStartInput = document.getElementById('sinteringStart');
@@ -222,10 +223,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     loadSampleList();
+    syncGrowingTasks();
     bindEvents();
     bindTextareaResize();
     checkMsStatus(); // 检查 Microsoft To Do 连接状态
 });
+
+// ============================================================
+// To Do Sync
+// ============================================================
+async function syncGrowingTasks() {
+    try {
+        const resp = await fetch('/api/samples/sync_todo', { method: 'POST' });
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.success && data.completed_samples && data.completed_samples.length > 0) {
+                const ids = data.completed_samples.join(', ');
+                showToast(`样品 ${ids} 已生长完成！已自动更新。`, 'success');
+                setTimeout(() => {
+                    loadSampleList(searchInput.value);
+                    // 如果正在编辑的样品正好完成了，静默更新状态按钮，避免用户保存时将其又覆盖为生长中
+                    if (currentSampleId && data.completed_samples.includes(currentSampleId)) {
+                        const toggleDone = document.getElementById('toggleDone');
+                        const toggleGrowing = document.getElementById('toggleGrowing');
+                        if (toggleGrowing) toggleGrowing.classList.remove('active');
+                        if (toggleDone) toggleDone.classList.add('active');
+                    }
+                }, 2000);
+            }
+        }
+    } catch (e) {
+        console.error("Sync To Do failed:", e);
+    }
+}
 
 // ============================================================
 // Event Binding
@@ -308,31 +338,18 @@ function bindEvents() {
         });
     }
 
-    // Toggle success/fail/pending
-    toggleSuccess.addEventListener('click', () => {
-        toggleSuccess.classList.add('active');
-        toggleFail.classList.remove('active');
-        togglePending.classList.remove('active');
-        toggleGrowing.classList.remove('active');
-    });
-    toggleFail.addEventListener('click', () => {
-        toggleFail.classList.add('active');
-        toggleSuccess.classList.remove('active');
-        togglePending.classList.remove('active');
-        toggleGrowing.classList.remove('active');
-    });
-    togglePending.addEventListener('click', () => {
-        togglePending.classList.add('active');
-        toggleSuccess.classList.remove('active');
-        toggleFail.classList.remove('active');
-        toggleGrowing.classList.remove('active');
-    });
-    toggleGrowing.addEventListener('click', () => {
-        toggleGrowing.classList.add('active');
-        toggleSuccess.classList.remove('active');
-        toggleFail.classList.remove('active');
-        togglePending.classList.remove('active');
-    });
+    // Toggle success/fail/pending/growing/done
+    const toggles = [toggleSuccess, toggleFail, togglePending, toggleGrowing, toggleDone];
+    function activateToggle(target) {
+        toggles.forEach(t => t && t.classList.remove('active'));
+        if (target) target.classList.add('active');
+    }
+    
+    toggleSuccess.addEventListener('click', () => activateToggle(toggleSuccess));
+    toggleFail.addEventListener('click', () => activateToggle(toggleFail));
+    togglePending.addEventListener('click', () => activateToggle(togglePending));
+    toggleGrowing.addEventListener('click', () => activateToggle(toggleGrowing));
+    if (toggleDone) toggleDone.addEventListener('click', () => activateToggle(toggleDone));
 
     // Measurement toggles
     toggleElectric.addEventListener('click', (e) => {
@@ -474,7 +491,7 @@ async function loadSampleList(query = '') {
             <li class="sample-item ${s.id === currentSampleId ? 'active' : ''}" 
                 data-id="${escapeHtml(s.id)}">
                 <div class="sample-item-id">
-                    <span class="status-dot ${s.is_successful === 1 ? 'success' : (s.is_successful === 0 ? 'fail' : (s.is_successful === 3 ? 'growing' : 'pending'))}"></span>
+                    <span class="status-dot ${s.is_successful === 1 ? 'success' : (s.is_successful === 0 ? 'fail' : (s.is_successful === 3 ? 'growing' : (s.is_successful === 4 ? 'done' : 'pending')))}"></span>
                     ${escapeHtml(s.id)}
                     ${s.has_electric ? '<span class="badge badge-elect" data-i18n="form.badges.electric">' + t('form.badges.electric') + '</span>' : ''}
                     ${s.has_magnetic ? '<span class="badge badge-magn" data-i18n="form.badges.magnetic">' + t('form.badges.magnetic') + '</span>' : ''}
@@ -563,6 +580,7 @@ function createNewSample() {
     toggleFail.classList.remove('active');
     togglePending.classList.add('active');
     toggleGrowing.classList.remove('active');
+    if (toggleDone) toggleDone.classList.remove('active');
     
     toggleElectric.classList.remove('active');
     toggleMagnetic.classList.remove('active');
@@ -604,12 +622,15 @@ function fillForm(sample) {
     toggleFail.classList.remove('active');
     togglePending.classList.remove('active');
     toggleGrowing.classList.remove('active');
+    if (toggleDone) toggleDone.classList.remove('active');
 
     let sVal = sample.status !== undefined ? sample.status : sample.is_successful;
     if (sVal === 2) {
         togglePending.classList.add('active');
     } else if (sVal === 3) {
         toggleGrowing.classList.add('active');
+    } else if (sVal === 4) {
+        if (toggleDone) toggleDone.classList.add('active');
     } else if (sVal === 1 || sVal === true) {
         toggleSuccess.classList.add('active');
     } else {
@@ -690,6 +711,7 @@ async function saveSample() {
     if (toggleFail.classList.contains('active')) statusVal = 0;
     else if (togglePending.classList.contains('active')) statusVal = 2;
     else if (toggleGrowing.classList.contains('active')) statusVal = 3;
+    else if (toggleDone && toggleDone.classList.contains('active')) statusVal = 4;
     
     const hasElectric = toggleElectric.classList.contains('active') ? 1 : 0;
     const hasMagnetic = toggleMagnetic.classList.contains('active') ? 1 : 0;
