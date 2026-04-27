@@ -7,7 +7,10 @@ import uuid
 import base64
 import json
 import time
-from flask import Flask, request, jsonify, render_template, send_from_directory, session, redirect, url_for
+import csv
+from io import BytesIO, StringIO
+from datetime import datetime
+from flask import Flask, request, jsonify, render_template, send_from_directory, send_file, session, redirect, url_for
 from werkzeug.exceptions import HTTPException
 from functools import wraps
 from PIL import Image
@@ -572,6 +575,60 @@ def calculate_mass():
 def get_elements():
     """返回所有可用元素列表（带摩尔质量）"""
     return jsonify(elenmentsmasstable)
+
+
+# ============================================================
+# 导出功能
+# ============================================================
+
+def _format_element_ratios(element_ratios):
+    """将元素比例列表格式化为化学式字符串"""
+    if not element_ratios:
+        return ''
+
+    # 按元素符号排序，便于阅读
+    sorted_ratios = sorted(element_ratios, key=lambda x: x.get('element', ''))
+    parts = []
+    for item in sorted_ratios:
+        element = item.get('element', '')
+        ratio = item.get('ratio', 1)
+        if ratio == 1:
+            parts.append(element)
+        else:
+            parts.append(f"{element}{ratio}")
+    return ''.join(parts)
+
+
+@app.route('/api/samples/export', methods=['GET'])
+def export_samples():
+    """导出所有样品为 CSV 格式"""
+    samples = models.get_all_samples()
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # 写入表头
+    writer.writerow(['编号', '元素比例（化学式）', '生长制度', '结果'])
+
+    # 写入数据
+    for sample in samples:
+        element_formula = _format_element_ratios(sample.get('element_ratios', []))
+        writer.writerow([
+            sample.get('id', ''),
+            element_formula,
+            sample.get('growth_process', ''),
+            sample.get('results', '')
+        ])
+
+    # 生成响应
+    output.seek(0)
+    response = send_file(
+        BytesIO(output.getvalue().encode('utf-8-sig')),
+        mimetype='text/csv; charset=utf-8',
+        as_attachment=True,
+        download_name=f'samples_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    )
+    return response
 
 
 # ============================================================
