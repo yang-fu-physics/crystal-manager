@@ -13,7 +13,7 @@ let allElements = {};         // 元素摩尔质量表
 const translations = {
     zh: {
         title: "晶体材料样品管理系统",
-        nav: { sampleList: "样品列表", logoutTitle: "退出登录", logout: "🔒 退出" },
+        nav: { sampleList: "样品列表", logoutTitle: "退出登录", logout: "🔒 退出", exportTitle: "导出样品数据", export: "导出" },
         sidebar: { searchPlaceholder: "搜索样品编号、产物、备注...", clearSearch: "清除搜索", newSample: "新建样品" },
         main: { emptyStateTitle: "选择或新建一个样品", emptyStateDesc: "从左侧列表选择一个样品查看详情，或点击「新建样品」开始记录" },
         form: {
@@ -42,13 +42,14 @@ const translations = {
             noData: "未识别到元素数据", recognizeErrorPrefix: "识别失败: ", confirmDeleteFile: "确定要删除此文件吗？", confirmLogout: "确定要退出登录吗？",
             edxHeader: { element: "元素", wt: "质量百分比 (%)", at: "原子百分比 (%)", nodata: "暂无识别数据，请点击「AI 识别」按钮" },
             aiBtn: "🤖 AI 识别", delBtn: "× 删除",
-            todoSynced: "已同步到 Microsoft To Do", todoSyncFailed: "To Do 同步失败: {0}"
+            todoSynced: "已同步到 Microsoft To Do", todoSyncFailed: "To Do 同步失败: {0}",
+            exportSuccess: "导出成功", exportFailed: "导出失败"
         },
         msTodo: { connect: "连接 To Do", connected: "已连接 To Do", disconnect: "断开 To Do", notConfigured: "请先在 config.py 配置 MS_CLIENT_ID", confirmDisconnect: "确定要断开 Microsoft To Do 连接吗？" }
     },
     en: {
         title: "Crystal Sample Management",
-        nav: { sampleList: "Sample List", logoutTitle: "Logout", logout: "🔒 Logout" },
+        nav: { sampleList: "Sample List", logoutTitle: "Logout", logout: "🔒 Logout", exportTitle: "Export Sample Data", export: "Export" },
         sidebar: { searchPlaceholder: "Search ID, product, notes...", clearSearch: "Clear", newSample: "New Sample" },
         main: { emptyStateTitle: "Select or Create a Sample", emptyStateDesc: "Select a sample from the list to view details, or click 'New Sample'." },
         form: {
@@ -77,7 +78,8 @@ const translations = {
             noData: "No element data identified", recognizeErrorPrefix: "Recognition failed: ", confirmDeleteFile: "Are you sure you want to delete this file?", confirmLogout: "Are you sure you want to logout?",
             edxHeader: { element: "Element", wt: "Weight %", at: "Atomic %", nodata: "No data, click 'AI Recognition' button" },
             aiBtn: "🤖 AI Recognize", delBtn: "× Delete",
-            todoSynced: "Synced to Microsoft To Do", todoSyncFailed: "To Do sync failed: {0}"
+            todoSynced: "Synced to Microsoft To Do", todoSyncFailed: "To Do sync failed: {0}",
+            exportSuccess: "Export successful", exportFailed: "Export failed"
         },
         msTodo: { connect: "Connect To Do", connected: "Connected", disconnect: "Disconnect To Do", notConfigured: "Please configure MS_CLIENT_ID in config.py", confirmDisconnect: "Disconnect Microsoft To Do?" }
     }
@@ -1437,6 +1439,34 @@ async function logout() {
 }
 
 window.logout = logout;
+
+// ============================================================
+// Export Samples
+// ============================================================
+async function exportSamples() {
+    try {
+        const response = await fetch('/api/samples/export');
+        if (!response.ok) {
+            showToast(t('messages.exportFailed'), 'error');
+            return;
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `samples_export_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        showToast(t('messages.exportSuccess'), 'success');
+    } catch (e) {
+        console.error('导出失败', e);
+        showToast(t('messages.exportFailed'), 'error');
+    }
+}
+
+window.exportSamples = exportSamples;
 
 // ============================================================
 // Microsoft To Do Integration
