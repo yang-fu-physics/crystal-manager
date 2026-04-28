@@ -25,10 +25,10 @@ const translations = {
                        sinteringNowBtn: "当前时间", sinteringNowTitle: "设为当前时间" },
             placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcess: "描述晶体的生长方法、温度曲线、时间等参数...", results: "实验结果描述...", notes: "其他需要记录的信息..." },
             status: { success: "成功", fail: "失败", pending: "待定", growing: "生长中", done: "生长完成" },
-            measurements: { electric: "电学测量", magnetic: "磁性测量" },
-            badges: { electric: "电", magnetic: "磁" },
+            measurements: { electric: "电学测量", magnetic: "磁性测量", xrd: "XRD", edx: "EDX" },
+            badges: { electric: "电", magnetic: "磁", xrd: "XRD", edx: "EDX" },
             calc: { symbol: "元素符号", ratio: "摩尔比", molarMass: "摩尔质量 (g/mol)", mass: "实际质量 (g)", reference: "参考", addElement: "添加元素", calcMass: "计算质量" },
-            upload: { dragPhoto: "拖拽照片到此处，或", dragEdx: "拖拽 EDX 谱图到此处，或", dragData: "拖拽 .dat/.csv/.txt 文件到此处，或", dragOther: "拖拽任何其他文件到此处，或", clickUpload: "点击上传", takePhoto: "拍照上传" }
+            upload: { dragPhoto: "拖拽照片到此处，或", dragXrd: "拖拽 XRD 数据或谱图到此处，或", dragEdx: "拖拽 EDX 谱图到此处，或", dragData: "拖拽 .dat/.csv/.txt 文件到此处，或", dragOther: "拖拽任何其他文件到此处，或", clickUpload: "点击上传", takePhoto: "拍照上传" }
         },
         messages: {
             samplesCount: "{0} 个样品", noMatch: "没有找到匹配的样品", noSamples: "还没有样品，点击上方按钮新建",
@@ -61,10 +61,10 @@ const translations = {
                        sinteringNowBtn: "Now", sinteringNowTitle: "Set to current time" },
             placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcess: "Describe growth method, temp profile, time, etc...", results: "Experiment results...", notes: "Any other notes..." },
             status: { success: "Success", fail: "Fail", pending: "Pending", growing: "Growing", done: "Done" },
-            measurements: { electric: "Electric", magnetic: "Magnetic" },
-            badges: { electric: "Elec", magnetic: "Mag" },
+            measurements: { electric: "Electric", magnetic: "Magnetic", xrd: "XRD", edx: "EDX" },
+            badges: { electric: "Elec", magnetic: "Mag", xrd: "XRD", edx: "EDX" },
             calc: { symbol: "Symbol", ratio: "Mol Ratio", molarMass: "Molar Mass (g/mol)", mass: "Actual Mass (g)", reference: "Ref", addElement: "Add Element", calcMass: "Calculate Mass" },
-            upload: { dragPhoto: "Drag photos here, or ", dragEdx: "Drag EDX spectra here, or ", dragData: "Drag .dat/.csv/.txt files here, or ", dragOther: "Drag any other files here, or ", clickUpload: "Click to Select", takePhoto: "Take Photo" }
+            upload: { dragPhoto: "Drag photos here, or ", dragXrd: "Drag XRD data or spectra here, or ", dragEdx: "Drag EDX spectra here, or ", dragData: "Drag .dat/.csv/.txt files here, or ", dragOther: "Drag any other files here, or ", clickUpload: "Click to Select", takePhoto: "Take Photo" }
         },
         messages: {
             samplesCount: "{0} Samples", noMatch: "No matching samples found", noSamples: "No samples yet, create one.",
@@ -177,6 +177,8 @@ const toggleFail = document.getElementById('toggleFail');
 const togglePending = document.getElementById('togglePending');
 const toggleElectric = document.getElementById('toggleElectric');
 const toggleMagnetic = document.getElementById('toggleMagnetic');
+const toggleXRD = document.getElementById('toggleXRD');
+const toggleEDX = document.getElementById('toggleEDX');
 const toggleGrowing = document.getElementById('toggleGrowing');
 const toggleDone = document.getElementById('toggleDone');
 
@@ -199,6 +201,10 @@ const photoGrid = document.getElementById('photoGrid');
 const edxUploadZone = document.getElementById('edxUploadZone');
 const edxInput = document.getElementById('edxInput');
 const edxList = document.getElementById('edxList');
+
+const xrdUploadZone = document.getElementById('xrdUploadZone');
+const xrdInput = document.getElementById('xrdInput');
+const xrdList = document.getElementById('xrdList');
 
 const dataUploadZone = document.getElementById('dataUploadZone');
 const dataInput = document.getElementById('dataInput');
@@ -340,6 +346,17 @@ function bindEvents() {
         });
     }
 
+    // Camera input (mobile) - XRD
+    const xrdCameraInput = document.getElementById('xrdCameraInput');
+    if (xrdCameraInput) {
+        xrdCameraInput.addEventListener('change', () => {
+            if (xrdCameraInput.files.length > 0) {
+                uploadFiles(xrdCameraInput.files, 'xrd');
+                xrdCameraInput.value = '';
+            }
+        });
+    }
+
     // Toggle success/fail/pending/growing/done
     const toggles = [toggleSuccess, toggleFail, togglePending, toggleGrowing, toggleDone];
     function activateToggle(target) {
@@ -353,7 +370,6 @@ function bindEvents() {
     toggleGrowing.addEventListener('click', () => activateToggle(toggleGrowing));
     if (toggleDone) toggleDone.addEventListener('click', () => activateToggle(toggleDone));
 
-    // Measurement toggles
     toggleElectric.addEventListener('click', (e) => {
         e.preventDefault();
         toggleElectric.classList.toggle('active');
@@ -362,6 +378,18 @@ function bindEvents() {
         e.preventDefault();
         toggleMagnetic.classList.toggle('active');
     });
+    if (toggleXRD) {
+        toggleXRD.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleXRD.classList.toggle('active');
+        });
+    }
+    if (toggleEDX) {
+        toggleEDX.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleEDX.classList.toggle('active');
+        });
+    }
 
     // Sintering time
     btnNow.addEventListener('click', () => {
@@ -387,6 +415,9 @@ function bindEvents() {
 
     // EDX upload
     setupUploadZone(edxUploadZone, edxInput, (files) => uploadFiles(files, 'edx'));
+
+    // XRD upload
+    setupUploadZone(xrdUploadZone, xrdInput, (files) => uploadFiles(files, 'xrd'));
 
     // Data file upload
     setupUploadZone(dataUploadZone, dataInput, (files) => uploadFiles(files, 'datafiles'));
@@ -497,6 +528,8 @@ async function loadSampleList(query = '') {
                     ${escapeHtml(s.id)}
                     ${s.has_electric ? '<span class="badge badge-elect" data-i18n="form.badges.electric">' + t('form.badges.electric') + '</span>' : ''}
                     ${s.has_magnetic ? '<span class="badge badge-magn" data-i18n="form.badges.magnetic">' + t('form.badges.magnetic') + '</span>' : ''}
+                    ${s.has_xrd ? '<span class="badge badge-xrd" data-i18n="form.badges.xrd">' + t('form.badges.xrd') + '</span>' : ''}
+                    ${s.has_edx ? '<span class="badge badge-edx" data-i18n="form.badges.edx">' + t('form.badges.edx') + '</span>' : ''}
                 </div>
                 <div class="sample-item-product">${escapeHtml(s.target_product || '—')}</div>
                 <div class="sample-item-date">${formatDate(s.sintering_start || s.created_at)}</div>
@@ -595,6 +628,7 @@ function createNewSample() {
     elementTableBody.innerHTML = '';
     photoGrid.innerHTML = '';
     edxList.innerHTML = '';
+    if (xrdList) xrdList.innerHTML = '';
     dataFileList.innerHTML = '';
     otherFileList.innerHTML = '';
 
@@ -645,6 +679,16 @@ function fillForm(sample) {
     if (sample.has_magnetic) toggleMagnetic.classList.add('active');
     else toggleMagnetic.classList.remove('active');
 
+    if (toggleXRD) {
+        if (sample.has_xrd || (sample.xrd_images && sample.xrd_images.length > 0)) toggleXRD.classList.add('active');
+        else toggleXRD.classList.remove('active');
+    }
+
+    if (toggleEDX) {
+        if (sample.has_edx || (sample.edx_images && sample.edx_images.length > 0)) toggleEDX.classList.add('active');
+        else toggleEDX.classList.remove('active');
+    }
+
     // Sintering time
     sinteringStartInput.value = isoToDatetimeLocal(sample.sintering_start || '');
     sinteringDurationInput.value = (sample.sintering_duration != null && sample.sintering_duration !== '') ? sample.sintering_duration : '';
@@ -669,6 +713,9 @@ function fillForm(sample) {
 
     // 照片
     renderPhotos(sample.photos || []);
+
+    // XRD
+    renderXrd(sample.xrd_images || []);
 
     // EDX
     renderEdxList(sample.edx_images || []);
@@ -717,6 +764,8 @@ async function saveSample() {
     
     const hasElectric = toggleElectric.classList.contains('active') ? 1 : 0;
     const hasMagnetic = toggleMagnetic.classList.contains('active') ? 1 : 0;
+    const hasXrd = (toggleXRD && toggleXRD.classList.contains('active')) ? 1 : 0;
+    const hasEdx = (toggleEDX && toggleEDX.classList.contains('active')) ? 1 : 0;
 
     // 收集元素数据
     const elementRows = elementTableBody.querySelectorAll('tr');
@@ -747,6 +796,8 @@ async function saveSample() {
         status: statusVal,
         has_electric: hasElectric,
         has_magnetic: hasMagnetic,
+        has_xrd: hasXrd,
+        has_edx: hasEdx,
         growth_process: growthProcessInput.value.trim(),
         results: resultsFieldInput.value.trim(),
         notes: notesFieldInput.value.trim(),
@@ -883,6 +934,8 @@ function copySample() {
 
     toggleElectric.classList.remove('active');
     toggleMagnetic.classList.remove('active');
+    if (toggleXRD) toggleXRD.classList.remove('active');
+    if (toggleEDX) toggleEDX.classList.remove('active');
 
     // Clear sintering time for copy
     sinteringStartInput.value = '';
@@ -1091,6 +1144,7 @@ async function uploadFiles(files, type) {
     const urlMap = {
         photos: `/api/samples/${encodeURIComponent(currentSampleId)}/photos`,
         edx: `/api/samples/${encodeURIComponent(currentSampleId)}/edx`,
+        xrd: `/api/samples/${encodeURIComponent(currentSampleId)}/xrd`,
         datafiles: `/api/samples/${encodeURIComponent(currentSampleId)}/datafiles`,
         otherfiles: `/api/samples/${encodeURIComponent(currentSampleId)}/otherfiles`
     };
@@ -1106,9 +1160,22 @@ async function uploadFiles(files, type) {
             throw new Error(err.error || t('messages.uploadFailed'));
         }
 
-        showToast(t('messages.uploadSuccess'), 'success');
-        // 重新加载样品详情，但保持滚动位置
-        await selectSample(currentSampleId, false);
+        // Auto update toggle and save if it's xrd or edx
+        let autoSaved = false;
+        if (type === 'xrd' && toggleXRD && !toggleXRD.classList.contains('active')) {
+            toggleXRD.classList.add('active');
+            await saveSample();
+            autoSaved = true;
+        } else if (type === 'edx' && toggleEDX && !toggleEDX.classList.contains('active')) {
+            toggleEDX.classList.add('active');
+            await saveSample();
+            autoSaved = true;
+        }
+
+        if (!autoSaved) {
+            showToast(t('messages.uploadSuccess'), 'success');
+            await selectSample(currentSampleId, false);
+        }
     } catch (e) {
         showToast(e.message, 'error');
     }
@@ -1130,6 +1197,25 @@ function renderPhotos(photos) {
             <div class="photo-item" onclick="openModal('${escapeJs(src)}')">
                 <img src="${thumbSrc}" alt="${escapeHtml(p.filename)}" loading="lazy">
                 <button class="photo-delete" onclick="event.stopPropagation(); deleteAttachment('photos', ${p.id})" title="删除">×</button>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderXrd(xrdImages) {
+    if (!xrdList) return;
+    if (xrdImages.length === 0) {
+        xrdList.innerHTML = '';
+        return;
+    }
+
+    xrdList.innerHTML = xrdImages.map(p => {
+        const src = getUploadUrl(p.filepath);
+        const thumbSrc = src + '?thumb=1';
+        return `
+            <div class="photo-item" onclick="openModal('${escapeJs(src)}')">
+                <img src="${thumbSrc}" alt="${escapeHtml(p.filename)}" loading="lazy">
+                <button class="photo-delete" onclick="event.stopPropagation(); deleteAttachment('xrd', ${p.id})" title="删除">×</button>
             </div>
         `;
     }).join('');
@@ -1338,6 +1424,7 @@ async function deleteAttachment(type, id) {
     const urlMap = {
         photos: `/api/photos/${id}`,
         edx: `/api/edx/${id}`,
+        xrd: `/api/xrd/${id}`,
         datafiles: `/api/datafiles/${id}`,
         otherfiles: `/api/otherfiles/${id}`
     };
