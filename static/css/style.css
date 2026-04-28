@@ -422,6 +422,14 @@ body {
     background-color: var(--accent);
 }
 
+.badge-xrd {
+    background-color: #8e44ad;
+}
+
+.badge-edx {
+    background-color: #2980b9;
+}
+
 /* ---------- Main Panel ---------- */
 .main-panel {
     flex: 1;

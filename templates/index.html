@@ -138,6 +138,8 @@
                             <div class="toggle-group">
                                 <button class="toggle-btn" id="toggleElectric"><span data-i18n="form.measurements.electric">电学测量</span></button>
                                 <button class="toggle-btn" id="toggleMagnetic"><span data-i18n="form.measurements.magnetic">磁性测量</span></button>
+                                <button class="toggle-btn" id="toggleXRD"><span data-i18n="form.measurements.xrd">XRD</span></button>
+                                <button class="toggle-btn" id="toggleEDX"><span data-i18n="form.measurements.edx">EDX</span></button>
                             </div>
                         </div>
                     </div>
@@ -243,6 +245,28 @@
                     </button>
                     <div class="photo-grid" id="photoGrid">
                         <!-- 动态填充照片缩略图 -->
+                    </div>
+                </section>
+
+                <!-- XRD 区 -->
+                <section class="form-section">
+                    <h3 class="section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><polyline points="14 2 14 8 20 8"/><path d="M2 15h10"/><path d="m9 18 3-3-3-3"/></svg>
+                        <span data-i18n="form.sections.xrd">XRD 衍射分析</span>
+                    </h3>
+                    <div class="upload-zone" id="xrdUploadZone">
+                        <input type="file" id="xrdInput" multiple accept="image/*,.raw,.dat,.csv,.txt" style="display:none">
+                        <div class="upload-placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            <p><span data-i18n="form.upload.dragXrd">拖拽 XRD 数据或谱图到此处，或</span> <span class="upload-link" data-i18n="form.upload.clickUpload">点击上传</span></p>
+                        </div>
+                    </div>
+                    <input type="file" id="xrdCameraInput" accept="image/*" capture="camera" style="display:none">
+                    <button type="button" class="btn-outline btn-sm btn-camera" id="xrdCameraBtn" onclick="document.getElementById('xrdCameraInput').click()">
+                        📷 <span data-i18n="form.upload.takePhoto">拍照上传</span>
+                    </button>
+                    <div class="photo-grid" id="xrdList">
+                        <!-- 动态填充 XRD 图 -->
                     </div>
                 </section>
 

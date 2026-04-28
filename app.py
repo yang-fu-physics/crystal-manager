@@ -362,20 +362,30 @@ def upload_edx(sample_id):
 def recognize_edx(edx_id):
     """调用 GPT Vision API 识别 EDX 谱图"""
     from openai import OpenAI
+
+    app.logger.info("=" * 50)
+    app.logger.info(f"[EDX 识别] 开始处理 edx_id={edx_id}")
+
     conn = models.get_db()
     row = conn.execute("SELECT * FROM edx_images WHERE id = ?", (edx_id,)).fetchone()
     conn.close()
 
     if not row:
+        app.logger.error(f"[EDX 识别] edx_id={edx_id} 不存在于数据库")
         return jsonify({'error': 'EDX 图片不存在'}), 404
 
     filepath = row['filepath']
+    app.logger.info(f"[EDX 识别] 文件路径: {filepath}")
+
     if not os.path.exists(filepath):
+        app.logger.error(f"[EDX 识别] 文件不存在: {filepath}")
         return jsonify({'error': '文件不存在'}), 404
 
     # 读取图片并 base64 编码
     with open(filepath, 'rb') as f:
-        image_data = base64.b64encode(f.read()).decode('utf-8')
+        raw_bytes = f.read()
+        image_data = base64.b64encode(raw_bytes).decode('utf-8')
+    app.logger.info(f"[EDX 识别] 图片已读取, 大小: {len(raw_bytes)} bytes, base64 长度: {len(image_data)}")
 
     ext = os.path.splitext(filepath)[1].lower()
     mime_map = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -383,6 +393,9 @@ def recognize_edx(edx_id):
     mime = mime_map.get(ext, 'image/png')
 
     try:
+        app.logger.info(f"[EDX 识别] 调用 AI API: model={config.OPENAI_MODEL}, base_url={config.OPENAI_BASE_URL}")
+        t0 = time.time()
+
         client = OpenAI(api_key=config.OPENAI_API_KEY, base_url=config.OPENAI_BASE_URL)
         response = client.chat.completions.create(
             model=config.OPENAI_MODEL,
@@ -410,28 +423,77 @@ def recognize_edx(edx_id):
             max_tokens=1000
         )
 
+        elapsed = time.time() - t0
+        app.logger.info(f"[EDX 识别] AI API 响应完成, 耗时: {elapsed:.1f}s")
+
         result_text = response.choices[0].message.content.strip()
+        app.logger.info(f"[EDX 识别] AI 原始返回:\n{result_text}")
+
         # 尝试解析 JSON
         # 去除可能的 markdown 包裹
         if result_text.startswith('```'):
             lines = result_text.split('\n')
             result_text = '\n'.join(lines[1:-1] if lines[-1].strip() == '```' else lines[1:])
             result_text = result_text.strip()
+            app.logger.info(f"[EDX 识别] 去除 markdown 包裹后:\n{result_text}")
 
         recognized_data = json.loads(result_text)
+        app.logger.info(f"[EDX 识别] ✅ 解析成功, 识别到 {len(recognized_data)} 个元素:")
+        for item in recognized_data:
+            app.logger.info(f"  - {item.get('element', '?')}: wt%={item.get('weight_percent', '?')}, at%={item.get('atomic_percent', '?')}")
+
         models.update_edx_recognized_data(edx_id, recognized_data)
+        app.logger.info(f"[EDX 识别] 数据已保存到数据库")
+        app.logger.info("=" * 50)
         return jsonify({'recognized_data': recognized_data})
 
     except json.JSONDecodeError:
         # GPT 返回的不是有效 JSON，原样返回让前端处理
+        app.logger.error(f"[EDX 识别] ❌ JSON 解析失败, AI 返回内容:\n{result_text}")
         return jsonify({'error': '识别结果格式异常', 'raw': result_text}), 422
     except Exception as e:
+        app.logger.error(f"[EDX 识别] ❌ API 调用失败: {e}", exc_info=True)
         return jsonify({'error': f'GPT API 调用失败: {str(e)}'}), 500
 
 
 @app.route('/api/edx/<int:edx_id>', methods=['DELETE'])
 def delete_edx(edx_id):
     models.delete_edx_image(edx_id)
+    return jsonify({'success': True})
+
+
+# ============================================================
+# XRD API
+# ============================================================
+
+@app.route('/api/samples/<sample_id>/xrd', methods=['POST'])
+def upload_xrd(sample_id):
+    existing = models.get_sample(sample_id)
+    if not existing:
+        return jsonify({'error': '样品不存在'}), 404
+
+    if 'file' not in request.files:
+        return jsonify({'error': '未选择文件'}), 400
+
+    folder = models.get_sample_subfolder(sample_id, 'xrd')
+    files = request.files.getlist('file')
+    uploaded = []
+    for file in files:
+        if file.filename:
+            ext = os.path.splitext(file.filename)[1]
+            safe_name = f"{uuid.uuid4().hex}{ext}"
+            filepath = os.path.join(folder, safe_name)
+            file.save(filepath)
+            xrd_id = models.add_xrd_image(sample_id, file.filename, filepath)
+            _create_thumbnail(filepath)
+            uploaded.append({'id': xrd_id, 'filename': file.filename, 'filepath': filepath})
+
+    return jsonify(uploaded), 201
+
+
+@app.route('/api/xrd/<int:xrd_id>', methods=['DELETE'])
+def delete_xrd(xrd_id):
+    models.delete_xrd_image(xrd_id)
     return jsonify({'success': True})
 
 
@@ -668,7 +730,7 @@ def serve_upload(filename):
         conn = models.get_db()
         # 将 URL 路径转为本地操作系统路径格式进行匹配，避免部分反斜杠问题，同时也支持 /
         query_path = f"%{filename.replace('/', os.sep)}"
-        for table in ['photos', 'edx_images', 'data_files', 'other_files']:
+        for table in ['photos', 'edx_images', 'xrd_images', 'data_files', 'other_files']:
             query = f"SELECT filename FROM {table} WHERE filepath LIKE ?"
             row = conn.execute(query, (query_path,)).fetchone()
             if row:

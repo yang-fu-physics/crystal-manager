@@ -29,6 +29,8 @@ def init_db():
             is_successful INTEGER DEFAULT 2,
             has_electric INTEGER DEFAULT 0,
             has_magnetic INTEGER DEFAULT 0,
+            has_xrd INTEGER DEFAULT 0,
+            has_edx INTEGER DEFAULT 0,
             growth_process TEXT DEFAULT '',
             element_ratios TEXT DEFAULT '[]',
             actual_masses TEXT DEFAULT '[]',
@@ -56,6 +58,15 @@ def init_db():
             filename TEXT NOT NULL,
             filepath TEXT NOT NULL,
             recognized_data TEXT DEFAULT '[]',
+            uploaded_at TEXT,
+            FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS xrd_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sample_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            filepath TEXT NOT NULL,
             uploaded_at TEXT,
             FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
         );
@@ -92,6 +103,13 @@ def init_db():
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE samples ADD COLUMN has_electric INTEGER DEFAULT 0")
         cursor.execute("ALTER TABLE samples ADD COLUMN has_magnetic INTEGER DEFAULT 0")
+
+    # Dynamic migration for has_xrd and has_edx
+    try:
+        cursor.execute("SELECT has_xrd FROM samples LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE samples ADD COLUMN has_xrd INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE samples ADD COLUMN has_edx INTEGER DEFAULT 0")
 
     # Dynamic migration for sintering time fields
     try:
@@ -153,16 +171,29 @@ def get_all_samples(query=None):
         if query:
             q = f"%{query}%"
             rows = conn.execute(
-                f"""SELECT * FROM samples
-                   WHERE id LIKE ? OR target_product LIKE ? OR notes LIKE ? OR results LIKE ? OR growth_process LIKE ?
-                   {ORDER_CLAUSE}""",
+                f"""SELECT s.*, 
+                    EXISTS(SELECT 1 FROM xrd_images x WHERE x.sample_id = s.id) as has_xrd_images,
+                    EXISTS(SELECT 1 FROM edx_images e WHERE e.sample_id = s.id) as has_edx_images
+                   FROM samples s
+                   WHERE s.id LIKE ? OR s.target_product LIKE ? OR s.notes LIKE ? OR s.results LIKE ? OR s.growth_process LIKE ?
+                   {ORDER_CLAUSE.replace('sintering_start', 's.sintering_start').replace('created_at', 's.created_at')}""",
                 (q, q, q, q, q)
             ).fetchall()
         else:
-            rows = conn.execute(f"SELECT * FROM samples {ORDER_CLAUSE}").fetchall()
+            rows = conn.execute(f"""SELECT s.*,
+                    EXISTS(SELECT 1 FROM xrd_images x WHERE x.sample_id = s.id) as has_xrd_images,
+                    EXISTS(SELECT 1 FROM edx_images e WHERE e.sample_id = s.id) as has_edx_images
+                   FROM samples s {ORDER_CLAUSE.replace('sintering_start', 's.sintering_start').replace('created_at', 's.created_at')}""").fetchall()
     finally:
         conn.close()
-    return [sample_to_dict(r) for r in rows]
+        
+    samples = []
+    for r in rows:
+        d = sample_to_dict(r)
+        d['has_xrd'] = 1 if (d.get('has_xrd') or d.get('has_xrd_images')) else 0
+        d['has_edx'] = 1 if (d.get('has_edx') or d.get('has_edx_images')) else 0
+        samples.append(d)
+    return samples
 
 
 def get_sample(sample_id):
@@ -180,6 +211,9 @@ def get_sample(sample_id):
                             conn.execute("SELECT * FROM photos WHERE sample_id = ? ORDER BY id", (sample_id,)).fetchall()]
         sample['edx_images'] = [dict(r) for r in
                                 conn.execute("SELECT * FROM edx_images WHERE sample_id = ? ORDER BY id",
+                                             (sample_id,)).fetchall()]
+        sample['xrd_images'] = [dict(r) for r in
+                                conn.execute("SELECT * FROM xrd_images WHERE sample_id = ? ORDER BY id",
                                              (sample_id,)).fetchall()]
         for edx in sample['edx_images']:
             if edx.get('recognized_data'):
@@ -207,17 +241,19 @@ def create_sample(data):
     conn = get_db()
     try:
         conn.execute(
-            """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, growth_process,
+            """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, has_xrd, has_edx, growth_process,
                element_ratios, actual_masses, notes, results,
                sintering_start, sintering_duration, sintering_end,
                created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 data['id'],
                 data.get('target_product', ''),
                 data.get('status', 2),
                 data.get('has_electric', 0),
                 data.get('has_magnetic', 0),
+                data.get('has_xrd', 0),
+                data.get('has_edx', 0),
                 data.get('growth_process', ''),
                 json.dumps(data.get('element_ratios', []), ensure_ascii=False),
                 json.dumps(data.get('actual_masses', []), ensure_ascii=False),
@@ -250,15 +286,15 @@ def update_sample(sample_id, data):
             conn.execute("BEGIN TRANSACTION")
             
             conn.execute(
-                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, growth_process=?,
+                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, growth_process=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
                    updated_at=?
                    WHERE id=?""",
-                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('growth_process', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
+                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_xrd', 0), data.get('has_edx', 0), data.get('growth_process', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
             )
             
-            for table in ['photos', 'edx_images', 'data_files', 'other_files', 'todo_tasks']:
+            for table in ['photos', 'edx_images', 'xrd_images', 'data_files', 'other_files', 'todo_tasks']:
                 try:
                     conn.execute(f"UPDATE {table} SET sample_id=? WHERE sample_id=?", (new_id, sample_id))
                 except sqlite3.OperationalError:
@@ -277,7 +313,7 @@ def update_sample(sample_id, data):
             # Update filepaths in DB to point to the new folder
             old_folder_norm = os.path.normpath(old_folder)
             new_folder_norm = os.path.normpath(new_folder)
-            for table in ['photos', 'edx_images', 'data_files', 'other_files']:
+            for table in ['photos', 'edx_images', 'xrd_images', 'data_files', 'other_files']:
                 try:
                     rows = conn.execute(f"SELECT id, filepath FROM {table} WHERE sample_id=?", (new_id,)).fetchall()
                     for r in rows:
@@ -295,12 +331,12 @@ def update_sample(sample_id, data):
             conn.execute("PRAGMA foreign_keys = ON")
         else:
             conn.execute(
-                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, growth_process=?,
+                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, growth_process=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
                    updated_at=?
                    WHERE id=?""",
-                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('growth_process', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
+                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_xrd', 0), data.get('has_edx', 0), data.get('growth_process', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
             )
             conn.commit()
     finally:
@@ -316,6 +352,7 @@ def delete_sample(sample_id):
         # 获取附件路径以便删除文件
         photos = conn.execute("SELECT filepath FROM photos WHERE sample_id = ?", (sample_id,)).fetchall()
         edx_imgs = conn.execute("SELECT filepath FROM edx_images WHERE sample_id = ?", (sample_id,)).fetchall()
+        xrd_imgs = conn.execute("SELECT filepath FROM xrd_images WHERE sample_id = ?", (sample_id,)).fetchall()
         data_files = conn.execute("SELECT filepath FROM data_files WHERE sample_id = ?", (sample_id,)).fetchall()
         other_files = conn.execute("SELECT filepath FROM other_files WHERE sample_id = ?", (sample_id,)).fetchall()
 
@@ -332,7 +369,7 @@ def delete_sample(sample_id):
         shutil.rmtree(sample_folder, ignore_errors=True)
     else:
         # Fallback: delete individual files (legacy flat structure)
-        for row in list(photos) + list(edx_imgs) + list(data_files) + list(other_files):
+        for row in list(photos) + list(edx_imgs) + list(xrd_imgs) + list(data_files) + list(other_files):
             filepath = row['filepath']
             if os.path.exists(filepath):
                 os.remove(filepath)
@@ -417,6 +454,39 @@ def delete_edx_image(edx_id):
             if os.path.exists(thumb_path):
                 os.remove(thumb_path)
         conn.execute("DELETE FROM edx_images WHERE id = ?", (edx_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def add_xrd_image(sample_id, filename, filepath):
+    now = datetime.now().isoformat()
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO xrd_images (sample_id, filename, filepath, uploaded_at) VALUES (?, ?, ?, ?)",
+            (sample_id, filename, filepath, now)
+        )
+        xrd_id = cursor.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    return xrd_id
+
+
+def delete_xrd_image(xrd_id):
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT filepath FROM xrd_images WHERE id = ?", (xrd_id,)).fetchone()
+        if row and os.path.exists(row['filepath']):
+            os.remove(row['filepath'])
+            # Also try to remove thumbnail
+            dir_name = os.path.dirname(row['filepath'])
+            base_name = os.path.basename(row['filepath'])
+            thumb_path = os.path.join(dir_name, f"thumb_{base_name}")
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+        conn.execute("DELETE FROM xrd_images WHERE id = ?", (xrd_id,))
         conn.commit()
     finally:
         conn.close()
