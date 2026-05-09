@@ -430,6 +430,80 @@ body {
     background-color: #2980b9;
 }
 
+/* ---------- Sort Toggle Button ---------- */
+.sort-toggle-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 12px;
+    font-size: 18px;
+    transition: var(--transition);
+}
+
+.sort-toggle-btn .sort-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.sort-toggle-btn.sort-manual-active {
+    background: rgba(108, 92, 231, 0.08);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.sort-toggle-btn.sort-manual-active:hover {
+    background: rgba(108, 92, 231, 0.14);
+}
+
+/* ---------- Drag Handle ---------- */
+.drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    color: var(--text-muted);
+    cursor: grab;
+    border-radius: 3px;
+    transition: var(--transition);
+    flex-shrink: 0;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.drag-handle:hover {
+    color: var(--accent);
+    background: var(--accent-glow);
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+/* ---------- Drag & Drop States ---------- */
+.sample-item.dragging {
+    opacity: 0.4;
+    background: rgba(108, 92, 231, 0.06);
+    border: 1px dashed var(--accent);
+    box-shadow: none;
+}
+
+.sample-item.drag-over {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.sample-item[draggable="true"] {
+    cursor: default;
+}
+
+.sample-item[draggable="true"]:hover {
+    background: var(--bg-hover);
+}
+
 /* ---------- Main Panel ---------- */
 .main-panel {
     flex: 1;

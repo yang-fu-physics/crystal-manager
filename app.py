@@ -179,7 +179,8 @@ def index():
 @app.route('/api/samples', methods=['GET'])
 def list_samples():
     query = request.args.get('q', '').strip()
-    samples = models.get_all_samples(query if query else None)
+    sort_mode = request.args.get('sort', 'date').strip()
+    samples = models.get_all_samples(query if query else None, sort_mode=sort_mode)
     
     # 添加禁用缓存的 Header，防止浏览器缓存旧数据
     response = jsonify(samples)
@@ -195,6 +196,21 @@ def sync_todo():
     except Exception as e:
         app.logger.error(f"Sync todo failed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/samples/reorder', methods=['POST'])
+def reorder_samples():
+    """更新样品手动排序顺序"""
+    data = request.get_json()
+    if not data or 'ordered_ids' not in data:
+        return jsonify({'error': '缺少 ordered_ids 参数'}), 400
+
+    ordered_ids = data['ordered_ids']
+    if not isinstance(ordered_ids, list):
+        return jsonify({'error': 'ordered_ids 必须是数组'}), 400
+
+    models.reorder_samples(ordered_ids)
+    return jsonify({'success': True})
 
 
 @app.route('/api/samples', methods=['POST'])
