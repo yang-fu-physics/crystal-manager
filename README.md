@@ -15,7 +15,7 @@ A local web application designed to manage all information regarding samples obt
 - **Data & Other Files** — Upload/download `.dat/.csv/.txt` and any other ad-hoc attachment files with reliable strict original filename retention.
 - **Microsoft To Do Integration** — Bind your Microsoft account to automatically sync sintering end times directly to To Do for robust cross-device reminders.
 - **Bilingual & Responsive UI** — Seamless dynamic i18n switching (EN/ZH); deep layout and touch optimizations for mobile and tablet, plus a widescreen fullscreen mode.
-- **Auto Backup** — Immediate automatic backup on startup + scheduled incremental hot backups, alongside a comprehensive CLI restoration utility.
+- **Auto Backup** — Immediate automatic backup on startup + scheduled incremental hot backups (daily) + full compressed zip backups (weekly), alongside a comprehensive CLI restoration utility.
 
 ## Tech Stack
 
@@ -67,7 +67,7 @@ crystal_manager/
 ├── app.py              # Flask app & API routes
 ├── config.py.example   # Config template (copy to config.py)
 ├── models.py           # SQLite database operations
-├── backup.py           # Incremental backup & scheduler
+├── backup.py           # Incremental & full backup & scheduler
 ├── restore_backup.py   # CLI tool for backup restoration
 ├── migrate_storage.py  # File storage migration tool
 ├── molmass_data.py     # Element molar masses data
@@ -84,12 +84,14 @@ crystal_manager/
 │       ├── edx/
 │       ├── data/
 │       └── others/
-└── backups/            # Backup directory (auto-created)
-    ├── manifest.json   # Incremental backup manifest
-    └── <timestamp>/
-        ├── db.sqlite       # Database snapshot
-        ├── files/          # Incremental new/modified files
-        └── backup_info.json
+├── backups/            # Incremental backup directory (auto-created)
+│   ├── manifest.json   # Incremental backup manifest
+│   └── <timestamp>/
+│       ├── db.sqlite       # Database snapshot
+│       ├── files/          # Incremental new/modified files
+│       └── backup_info.json
+└── full_backups/       # Full backup directory (auto-created)
+    └── full_<timestamp>.zip  # Complete zip archive (DB + all uploads)
 ```
 
 ## Calculation Formula
@@ -118,34 +120,47 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 
 ## Backup and Restore
 
-### Automatic Backup
+The system supports two backup strategies running in parallel:
 
-The application automatically runs a backup on startup, followed by scheduled incremental backups.
+### Incremental Backup (Daily)
 
-**Backup Contents:**
-- Full database snapshot (using SQLite Online Backup API, safe hot backup).
-- Incremental file backup (tracks file changes via `manifest.json`, copying only new/modified files).
+Runs on startup and every 24 hours. Only copies new/modified files from `uploads/`, while the database is fully snapshotted each time via SQLite Online Backup API.
+
+### Full Backup (Weekly)
+
+Runs on startup and every 7 days. Packages the **entire database + all uploads** into a single compressed zip file. Ideal for disaster recovery — restore from a single file with no dependency chain.
 
 **Configuration (`config.py`):**
 ```python
-BACKUP_INTERVAL_HOURS = 24   # Backup interval (hours)
-BACKUP_KEEP_COUNT = 30       # Max backups to keep
+# Incremental backup
+BACKUP_INTERVAL_HOURS = 24           # Interval (hours)
+BACKUP_KEEP_COUNT = 100000           # Max incremental backups to keep
+
+# Full backup (zip)
+FULL_BACKUP_INTERVAL_HOURS = 168     # Interval (168h = 7 days)
+FULL_BACKUP_KEEP_COUNT = 10          # Max full backups to keep
 ```
 
 ### CLI Utilities
 
 ```bash
-# List all backups
+# List all backups (incremental + full)
 python restore_backup.py list
 
-# Trigger a manual backup immediately
+# Trigger an incremental backup immediately
 python restore_backup.py backup
 
-# Interactively choose a backup to restore
+# Trigger a full backup (zip) immediately
+python restore_backup.py full-backup
+
+# Interactive menu (choose backup type & action)
 python restore_backup.py
 
-# Restore to a specific timestamp directly
+# Restore from incremental backup
 python restore_backup.py 2026-03-08_22-00-00
+
+# Restore from full backup zip
+python restore_backup.py full-restore full_2026-03-08_22-00-00.zip
 ```
 
 > ⚠️ The application must be restarted after a restoration.

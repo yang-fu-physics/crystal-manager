@@ -15,7 +15,7 @@
 - **数据与附件区** — 支持上传/下载 `.dat/.csv/.txt` 等实验数据文件以及不限格式的其他附件，完美还原原始文件名
 - **Microsoft To Do 深度集成** — 绑定微软账户，自动同步样品的烧制结束时间，实现高效的多端到期提醒
 - **双语与响应式设计** — 支持中英文 (i18n) 动态无缝切换；为手机、平板深度优化的独立排版结构和交互体验；提供全屏的宽屏浏览模式
-- **自动备份** — 启动时立即备份 + 自动增量定时热备，配套命令行极速恢复工具
+- **自动备份** — 启动时立即备份 + 每日增量热备 + 每周完整 zip 压缩备份，配套命令行极速恢复工具
 
 ## 技术栈
 
@@ -67,7 +67,7 @@ crystal_manager/
 ├── app.py              # Flask 主应用 & API 路由
 ├── config.py.example   # 配置文件模板 (复制为 config.py 使用)
 ├── models.py           # SQLite 数据库操作
-├── backup.py           # 增量备份 & 定时调度器
+├── backup.py           # 增量 & 完整备份 & 定时调度器
 ├── restore_backup.py   # 命令行备份恢复工具
 ├── migrate_storage.py  # 文件存储结构迁移工具
 ├── molmass_data.py     # 元素摩尔质量数据
@@ -84,12 +84,14 @@ crystal_manager/
 │       ├── edx/
 │       ├── data/
 │       └── others/
-└── backups/            # 备份目录 (自动创建)
-    ├── manifest.json   # 增量备份清单
-    └── <时间戳>/
-        ├── db.sqlite       # 数据库快照
-        ├── files/          # 增量文件
-        └── backup_info.json
+├── backups/            # 增量备份目录 (自动创建)
+│   ├── manifest.json   # 增量备份清单
+│   └── <时间戳>/
+│       ├── db.sqlite       # 数据库快照
+│       ├── files/          # 增量文件
+│       └── backup_info.json
+└── full_backups/       # 完整备份目录 (自动创建)
+    └── full_<时间戳>.zip   # 完整压缩包 (数据库 + 全部上传文件)
 ```
 
 ## 元素质量计算公式
@@ -119,34 +121,47 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 
 ## 备份与恢复
 
-### 自动备份
+系统支持两种备份策略并行运行：
 
-应用启动时自动执行一次备份，之后每隔固定时间自动增量备份。
+### 增量备份（每日）
 
-**备份内容：**
-- 数据库完整快照（使用 SQLite Online Backup API，安全热备份）
-- 上传文件增量备份（通过 manifest.json 跟踪文件变化，只备份新增/修改的文件）
+启动时执行一次，之后每 24 小时自动运行。仅备份 `uploads/` 中新增/修改的文件，数据库每次通过 SQLite Online Backup API 完整快照。
+
+### 完整备份（每周）
+
+启动时执行一次，之后每 7 天自动运行。将**完整数据库 + 全部上传文件**打包为单个 zip 压缩文件。适合灾难恢复 — 从单个文件一键还原，无增量依赖链。
 
 **配置 (`config.py`):**
 ```python
-BACKUP_INTERVAL_HOURS = 24   # 备份间隔（小时）
-BACKUP_KEEP_COUNT = 30       # 最多保留备份数量，超出自动删除最旧的
+# 增量备份
+BACKUP_INTERVAL_HOURS = 24           # 备份间隔（小时）
+BACKUP_KEEP_COUNT = 100000           # 增量备份最多保留数
+
+# 完整备份 (zip 压缩)
+FULL_BACKUP_INTERVAL_HOURS = 168     # 备份间隔（168小时 = 7天）
+FULL_BACKUP_KEEP_COUNT = 10          # 完整备份最多保留数
 ```
 
 ### 命令行工具
 
 ```bash
-# 查看所有备份
+# 查看所有备份（增量 + 完整）
 python restore_backup.py list
 
-# 立即手动触发一次备份
+# 立即执行一次增量备份
 python restore_backup.py backup
 
-# 交互式选择恢复
+# 立即执行一次完整备份 (zip)
+python restore_backup.py full-backup
+
+# 交互式菜单（选择备份类型和操作）
 python restore_backup.py
 
-# 直接恢复到指定时间点
+# 从增量备份恢复
 python restore_backup.py 2026-03-08_22-00-00
+
+# 从完整备份恢复
+python restore_backup.py full-restore full_2026-03-08_22-00-00.zip
 ```
 
 > ⚠️ 恢复后需重启应用才能生效。
