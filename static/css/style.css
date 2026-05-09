@@ -457,6 +457,29 @@ body {
     background: rgba(108, 92, 231, 0.14);
 }
 
+/* ---------- Reorder Button ---------- */
+.reorder-btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 12px;
+    font-size: 18px;
+    transition: var(--transition);
+}
+
+.reorder-btn.reorder-active {
+    background: var(--success-bg);
+    border-color: var(--success);
+    color: var(--success);
+    font-weight: 500;
+}
+
+.reorder-btn.reorder-active:hover {
+    background: rgba(39, 174, 96, 0.15);
+}
+
 /* ---------- Drag Handle ---------- */
 .drag-handle {
     display: inline-flex;
