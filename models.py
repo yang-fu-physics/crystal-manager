@@ -231,9 +231,9 @@ def get_sample(sample_id):
                 try:
                     edx['recognized_data'] = json.loads(edx['recognized_data'])
                 except (json.JSONDecodeError, TypeError):
-                    edx['recognized_data'] = []
+                    edx['recognized_data'] = None
             else:
-                edx['recognized_data'] = []
+                edx['recognized_data'] = None
 
         sample['data_files'] = [dict(r) for r in
                                 conn.execute("SELECT * FROM data_files WHERE sample_id = ? ORDER BY id",
