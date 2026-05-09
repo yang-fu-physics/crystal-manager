@@ -9,6 +9,7 @@ uploads/
 
 # 备份数据
 backups/
+full_backups/
 
 # Microsoft To Do token cache
 ms_token_cache.bin
