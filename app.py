@@ -807,4 +807,5 @@ if __name__ == '__main__':
     print(f"IPv4 访问: http://127.0.0.1:{port}")
     print(f"IPv6 访问: http://[::1]:{port}")
     print("=" * 50)
-    app.run(debug=True, host='::', port=port)
+    app.run(debug=True, host='::', port=port,
+            exclude_patterns=['backups/*', 'full_backups/*', 'uploads/*'])
