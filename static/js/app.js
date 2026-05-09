@@ -9,6 +9,7 @@ let isNewSample = false;      // 是否是新建样品
 let originalData = null;      // 编辑前的原始数据 (用于退出编辑恢复)
 let allElements = {};         // 元素摩尔质量表
 let sortMode = localStorage.getItem('crystal_sort_mode') || 'date'; // 排序模式: 'date' or 'manual'
+let isReorderMode = false; // 是否处于编辑顺序模式（全屏+手动排序时可激活）
 
 // ---- i18n Dictionary ----
 const translations = {
@@ -45,7 +46,8 @@ const translations = {
             aiBtn: "🤖 AI 识别", delBtn: "× 删除",
             todoSynced: "已同步到 Microsoft To Do", todoSyncFailed: "To Do 同步失败: {0}",
             exportSuccess: "导出成功", exportFailed: "导出失败",
-            sortByDate: "按时间排序", sortManual: "手动排序", reorderSaved: "排序已保存", reorderFailed: "保存排序失败"
+            sortByDate: "按时间排序", sortManual: "手动排序", reorderSaved: "排序已保存", reorderFailed: "保存排序失败",
+            editOrder: "✏️ 编辑顺序", doneOrder: "✅ 完成排序"
         },
         msTodo: { connect: "连接 To Do", connected: "已连接 To Do", disconnect: "断开 To Do", notConfigured: "请先在 config.py 配置 MS_CLIENT_ID", confirmDisconnect: "确定要断开 Microsoft To Do 连接吗？" }
     },
@@ -82,7 +84,8 @@ const translations = {
             aiBtn: "🤖 AI Recognize", delBtn: "× Delete",
             todoSynced: "Synced to Microsoft To Do", todoSyncFailed: "To Do sync failed: {0}",
             exportSuccess: "Export successful", exportFailed: "Export failed",
-            sortByDate: "Sort by Date", sortManual: "Manual Sort", reorderSaved: "Sort order saved", reorderFailed: "Failed to save sort order"
+            sortByDate: "Sort by Date", sortManual: "Manual Sort", reorderSaved: "Sort order saved", reorderFailed: "Failed to save sort order",
+            editOrder: "✏️ Edit Order", doneOrder: "✅ Done"
         },
         msTodo: { connect: "Connect To Do", connected: "Connected", disconnect: "Disconnect To Do", notConfigured: "Please configure MS_CLIENT_ID in config.py", confirmDisconnect: "Disconnect Microsoft To Do?" }
     }
@@ -300,11 +303,14 @@ function bindEvents() {
             } else {
                 fullscreenListBtn.title = '全屏显示';
                 icon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
+                // 退出全屏时自动退出编辑排序模式
+                if (isReorderMode) {
+                    isReorderMode = false;
+                    updateReorderBtn();
+                }
             }
-            // 切换全屏时重新渲染列表，以添加/移除拖拽手柄
-            if (sortMode === 'manual') {
-                loadSampleList(searchInput.value);
-            }
+            // 切换全屏时重新渲染列表
+            loadSampleList(searchInput.value);
         });
     }
 
@@ -536,13 +542,13 @@ async function loadSampleList(query = '') {
         }
 
         const isManual = sortMode === 'manual';
-        const canDrag = isManual && isFullscreenList();
+        const canDrag = isManual && isFullscreenList() && isReorderMode;
         sampleList.innerHTML = samples.map(s => `
             <li class="sample-item ${s.id === currentSampleId ? 'active' : ''}" 
                 data-id="${escapeHtml(s.id)}"
                 ${canDrag ? 'draggable="true"' : ''}>
                 <div class="sample-item-id">
-                    ${canDrag ? '<span class="drag-handle" title="拖拽排序">☰</span>' : ''}
+                    ${canDrag ? '<span class="drag-handle" title="\u62d6\u62fd\u6392\u5e8f">\u2630</span>' : ''}
                     <span class="status-dot ${s.is_successful === 1 ? 'success' : (s.is_successful === 0 ? 'fail' : (s.is_successful === 3 ? 'growing' : (s.is_successful === 4 ? 'done' : 'pending')))}"></span>
                     ${escapeHtml(s.id)}
                     ${s.has_electric ? '<span class="badge badge-elect" data-i18n="form.badges.electric">' + t('form.badges.electric') + '</span>' : ''}
@@ -550,15 +556,18 @@ async function loadSampleList(query = '') {
                     ${s.has_xrd ? '<span class="badge badge-xrd" data-i18n="form.badges.xrd">' + t('form.badges.xrd') + '</span>' : ''}
                     ${s.has_edx ? '<span class="badge badge-edx" data-i18n="form.badges.edx">' + t('form.badges.edx') + '</span>' : ''}
                 </div>
-                <div class="sample-item-product">${escapeHtml(s.target_product || '—')}</div>
+                <div class="sample-item-product">${escapeHtml(s.target_product || '\u2014')}</div>
                 <div class="sample-item-date">${formatDate(s.sintering_start || s.created_at)}</div>
             </li>
         `).join('');
 
-        // 只有全屏+手动排序模式才绑定拖拽事件
+        // 只有全屏+手动排序+编辑模式才绑定拖拽事件
         if (canDrag) {
             bindDragAndDrop();
         }
+
+        // 更新编辑排序按钮可见性
+        updateReorderBtn();
     } catch (e) {
         console.error(t('messages.loadListFailed'), e);
         showToast(t('messages.loadListFailed'), 'error');
@@ -1834,7 +1843,10 @@ async function saveReorder() {
 function toggleSortMode() {
     sortMode = sortMode === 'date' ? 'manual' : 'date';
     localStorage.setItem('crystal_sort_mode', sortMode);
+    // 切换排序模式时自动退出编辑排序
+    isReorderMode = false;
     updateSortBtn();
+    updateReorderBtn();
     loadSampleList(searchInput.value);
 }
 
@@ -1856,7 +1868,36 @@ function updateSortBtn() {
 
 window.toggleSortMode = toggleSortMode;
 
-// Initialize sort button on load
+// ============================================================
+// Reorder Mode Toggle (编辑顺序按钮)
+// ============================================================
+function toggleReorderMode() {
+    isReorderMode = !isReorderMode;
+    updateReorderBtn();
+    loadSampleList(searchInput.value);
+}
+
+function updateReorderBtn() {
+    const btn = document.getElementById('reorderBtn');
+    if (!btn) return;
+
+    // 只在全屏 + 手动排序模式下显示按钮
+    const shouldShow = sortMode === 'manual' && isFullscreenList();
+    btn.style.display = shouldShow ? 'inline-flex' : 'none';
+
+    if (isReorderMode) {
+        btn.classList.add('reorder-active');
+        btn.innerHTML = t('messages.doneOrder');
+    } else {
+        btn.classList.remove('reorder-active');
+        btn.innerHTML = t('messages.editOrder');
+    }
+}
+
+window.toggleReorderMode = toggleReorderMode;
+
+// Initialize buttons on load
 document.addEventListener('DOMContentLoaded', () => {
     updateSortBtn();
+    updateReorderBtn();
 });
