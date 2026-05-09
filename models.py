@@ -39,6 +39,7 @@ def init_db():
             sintering_start TEXT DEFAULT '',
             sintering_duration REAL DEFAULT NULL,
             sintering_end TEXT DEFAULT '',
+            sort_order INTEGER DEFAULT 0,
             created_at TEXT,
             updated_at TEXT
         );
@@ -119,6 +120,12 @@ def init_db():
         cursor.execute("ALTER TABLE samples ADD COLUMN sintering_duration REAL DEFAULT NULL")
         cursor.execute("ALTER TABLE samples ADD COLUMN sintering_end TEXT DEFAULT ''")
 
+    # Dynamic migration for sort_order
+    try:
+        cursor.execute("SELECT sort_order FROM samples LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE samples ADD COLUMN sort_order INTEGER DEFAULT 0")
+
     # todo_tasks 表: 记录 sample_id ↔ Microsoft To Do task_id 映射
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS todo_tasks (
@@ -162,10 +169,14 @@ def sample_to_dict(row):
     return d
 
 
-def get_all_samples(query=None):
-    """获取所有样品，支持搜索"""
+def get_all_samples(query=None, sort_mode='date'):
+    """获取所有样品，支持搜索和排序
+    sort_mode: 'date' - 按时间排序, 'manual' - 按手动排序
+    """
     # 有烧制时间用烧制时间，没有则用创建时间，统一降序排列
-    ORDER_CLAUSE = "ORDER BY COALESCE(NULLIF(sintering_start, ''), created_at) DESC, created_at DESC"
+    DATE_ORDER = "ORDER BY COALESCE(NULLIF(s.sintering_start, ''), s.created_at) DESC, s.created_at DESC"
+    MANUAL_ORDER = "ORDER BY s.sort_order ASC, s.created_at DESC"
+    ORDER_CLAUSE = MANUAL_ORDER if sort_mode == 'manual' else DATE_ORDER
     conn = get_db()
     try:
         if query:
@@ -176,14 +187,14 @@ def get_all_samples(query=None):
                     EXISTS(SELECT 1 FROM edx_images e WHERE e.sample_id = s.id) as has_edx_images
                    FROM samples s
                    WHERE s.id LIKE ? OR s.target_product LIKE ? OR s.notes LIKE ? OR s.results LIKE ? OR s.growth_process LIKE ?
-                   {ORDER_CLAUSE.replace('sintering_start', 's.sintering_start').replace('created_at', 's.created_at')}""",
+                   {ORDER_CLAUSE}""",
                 (q, q, q, q, q)
             ).fetchall()
         else:
             rows = conn.execute(f"""SELECT s.*,
                     EXISTS(SELECT 1 FROM xrd_images x WHERE x.sample_id = s.id) as has_xrd_images,
                     EXISTS(SELECT 1 FROM edx_images e WHERE e.sample_id = s.id) as has_edx_images
-                   FROM samples s {ORDER_CLAUSE.replace('sintering_start', 's.sintering_start').replace('created_at', 's.created_at')}""").fetchall()
+                   FROM samples s {ORDER_CLAUSE}""").fetchall()
     finally:
         conn.close()
         
@@ -586,6 +597,26 @@ def delete_todo_task(sample_id):
     conn = get_db()
     try:
         conn.execute("DELETE FROM todo_tasks WHERE sample_id = ?", (sample_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ============================================================
+# 手动排序
+# ============================================================
+
+def reorder_samples(ordered_ids):
+    """批量更新样品排序顺序
+    ordered_ids: 按照期望顺序排列的样品 ID 列表
+    """
+    conn = get_db()
+    try:
+        for idx, sample_id in enumerate(ordered_ids):
+            conn.execute(
+                "UPDATE samples SET sort_order = ? WHERE id = ?",
+                (idx, sample_id)
+            )
         conn.commit()
     finally:
         conn.close()

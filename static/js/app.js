@@ -8,6 +8,7 @@ let isEditing = false;        // 是否在编辑模式
 let isNewSample = false;      // 是否是新建样品
 let originalData = null;      // 编辑前的原始数据 (用于退出编辑恢复)
 let allElements = {};         // 元素摩尔质量表
+let sortMode = localStorage.getItem('crystal_sort_mode') || 'date'; // 排序模式: 'date' or 'manual'
 
 // ---- i18n Dictionary ----
 const translations = {
@@ -43,7 +44,8 @@ const translations = {
             edxHeader: { element: "元素", wt: "质量百分比 (%)", at: "原子百分比 (%)", nodata: "暂无识别数据，请点击「AI 识别」按钮" },
             aiBtn: "🤖 AI 识别", delBtn: "× 删除",
             todoSynced: "已同步到 Microsoft To Do", todoSyncFailed: "To Do 同步失败: {0}",
-            exportSuccess: "导出成功", exportFailed: "导出失败"
+            exportSuccess: "导出成功", exportFailed: "导出失败",
+            sortByDate: "按时间排序", sortManual: "手动排序", reorderSaved: "排序已保存", reorderFailed: "保存排序失败"
         },
         msTodo: { connect: "连接 To Do", connected: "已连接 To Do", disconnect: "断开 To Do", notConfigured: "请先在 config.py 配置 MS_CLIENT_ID", confirmDisconnect: "确定要断开 Microsoft To Do 连接吗？" }
     },
@@ -79,7 +81,8 @@ const translations = {
             edxHeader: { element: "Element", wt: "Weight %", at: "Atomic %", nodata: "No data, click 'AI Recognition' button" },
             aiBtn: "🤖 AI Recognize", delBtn: "× Delete",
             todoSynced: "Synced to Microsoft To Do", todoSyncFailed: "To Do sync failed: {0}",
-            exportSuccess: "Export successful", exportFailed: "Export failed"
+            exportSuccess: "Export successful", exportFailed: "Export failed",
+            sortByDate: "Sort by Date", sortManual: "Manual Sort", reorderSaved: "Sort order saved", reorderFailed: "Failed to save sort order"
         },
         msTodo: { connect: "Connect To Do", connected: "Connected", disconnect: "Disconnect To Do", notConfigured: "Please configure MS_CLIENT_ID in config.py", confirmDisconnect: "Disconnect Microsoft To Do?" }
     }
@@ -298,6 +301,10 @@ function bindEvents() {
                 fullscreenListBtn.title = '全屏显示';
                 icon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
             }
+            // 切换全屏时重新渲染列表，以添加/移除拖拽手柄
+            if (sortMode === 'manual') {
+                loadSampleList(searchInput.value);
+            }
         });
     }
 
@@ -462,6 +469,11 @@ function closeSidebar() {
     if (overlay) overlay.classList.remove('visible');
 }
 
+function isFullscreenList() {
+    const sidebar = document.getElementById('sidebar');
+    return sidebar && sidebar.classList.contains('is-fullscreen');
+}
+
 // Auto-resize textareas
 function autoResizeTextarea(textarea) {
     textarea.style.height = 'auto'; // Reset height to recalculate
@@ -502,7 +514,10 @@ function updateCalcDisplays() {
 // ============================================================
 async function loadSampleList(query = '') {
     try {
-        const url = query ? `/api/samples?q=${encodeURIComponent(query)}` : '/api/samples';
+        let url = query ? `/api/samples?q=${encodeURIComponent(query)}` : '/api/samples';
+        // 添加排序参数
+        const sep = url.includes('?') ? '&' : '?';
+        url += `${sep}sort=${sortMode}`;
         const resp = await fetch(url);
         const samples = await resp.json();
 
@@ -520,10 +535,14 @@ async function loadSampleList(query = '') {
             return;
         }
 
+        const isManual = sortMode === 'manual';
+        const canDrag = isManual && isFullscreenList();
         sampleList.innerHTML = samples.map(s => `
             <li class="sample-item ${s.id === currentSampleId ? 'active' : ''}" 
-                data-id="${escapeHtml(s.id)}">
+                data-id="${escapeHtml(s.id)}"
+                ${canDrag ? 'draggable="true"' : ''}>
                 <div class="sample-item-id">
+                    ${canDrag ? '<span class="drag-handle" title="拖拽排序">☰</span>' : ''}
                     <span class="status-dot ${s.is_successful === 1 ? 'success' : (s.is_successful === 0 ? 'fail' : (s.is_successful === 3 ? 'growing' : (s.is_successful === 4 ? 'done' : 'pending')))}"></span>
                     ${escapeHtml(s.id)}
                     ${s.has_electric ? '<span class="badge badge-elect" data-i18n="form.badges.electric">' + t('form.badges.electric') + '</span>' : ''}
@@ -535,6 +554,11 @@ async function loadSampleList(query = '') {
                 <div class="sample-item-date">${formatDate(s.sintering_start || s.created_at)}</div>
             </li>
         `).join('');
+
+        // 只有全屏+手动排序模式才绑定拖拽事件
+        if (canDrag) {
+            bindDragAndDrop();
+        }
     } catch (e) {
         console.error(t('messages.loadListFailed'), e);
         showToast(t('messages.loadListFailed'), 'error');
@@ -1674,3 +1698,165 @@ function updateSinteringEnd() {
     sinteringEndInput.value = endStr;
 }
 
+// ============================================================
+// Drag & Drop Reordering (Manual Sort)
+// ============================================================
+let dragSrcEl = null;
+
+function bindDragAndDrop() {
+    const items = sampleList.querySelectorAll('.sample-item[draggable="true"]');
+    items.forEach(item => {
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragover', handleDragOver);
+        item.addEventListener('dragenter', handleDragEnter);
+        item.addEventListener('dragleave', handleDragLeave);
+        item.addEventListener('drop', handleDrop);
+        item.addEventListener('dragend', handleDragEnd);
+    });
+
+    // Touch support for mobile drag
+    let touchStartY = 0;
+    let touchItem = null;
+    let placeholder = null;
+
+    items.forEach(item => {
+        const handle = item.querySelector('.drag-handle');
+        if (!handle) return;
+
+        handle.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchItem = item;
+            touchStartY = e.touches[0].clientY;
+            item.classList.add('dragging');
+        }, { passive: false });
+
+        handle.addEventListener('touchmove', (e) => {
+            if (!touchItem) return;
+            e.preventDefault();
+            const touchY = e.touches[0].clientY;
+            const elements = document.elementsFromPoint(e.touches[0].clientX, touchY);
+            const targetItem = elements.find(el => el.classList && el.classList.contains('sample-item') && el !== touchItem);
+            
+            if (targetItem) {
+                const rect = targetItem.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (touchY < midY) {
+                    sampleList.insertBefore(touchItem, targetItem);
+                } else {
+                    sampleList.insertBefore(touchItem, targetItem.nextSibling);
+                }
+            }
+        }, { passive: false });
+
+        handle.addEventListener('touchend', () => {
+            if (touchItem) {
+                touchItem.classList.remove('dragging');
+                touchItem = null;
+                saveReorder();
+            }
+        });
+    });
+}
+
+function handleDragStart(e) {
+    dragSrcEl = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', this.dataset.id);
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    const draggingEl = dragSrcEl;
+    if (!draggingEl || draggingEl === this) return;
+
+    const rect = this.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+
+    if (e.clientY < midY) {
+        sampleList.insertBefore(draggingEl, this);
+    } else {
+        sampleList.insertBefore(draggingEl, this.nextSibling);
+    }
+}
+
+function handleDragEnter(e) {
+    e.preventDefault();
+    this.classList.add('drag-over');
+}
+
+function handleDragLeave() {
+    this.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    this.classList.remove('drag-over');
+    return false;
+}
+
+function handleDragEnd() {
+    this.classList.remove('dragging');
+    sampleList.querySelectorAll('.sample-item').forEach(item => {
+        item.classList.remove('drag-over');
+    });
+    // 保存新顺序
+    saveReorder();
+}
+
+async function saveReorder() {
+    const items = sampleList.querySelectorAll('.sample-item');
+    const orderedIds = Array.from(items).map(item => item.dataset.id).filter(Boolean);
+
+    if (orderedIds.length === 0) return;
+
+    try {
+        const resp = await fetch('/api/samples/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ordered_ids: orderedIds })
+        });
+
+        if (!resp.ok) throw new Error(t('messages.reorderFailed'));
+        showToast(t('messages.reorderSaved'), 'success');
+    } catch (e) {
+        console.error('Reorder failed:', e);
+        showToast(t('messages.reorderFailed'), 'error');
+    }
+}
+
+// ============================================================
+// Sort Mode Toggle
+// ============================================================
+function toggleSortMode() {
+    sortMode = sortMode === 'date' ? 'manual' : 'date';
+    localStorage.setItem('crystal_sort_mode', sortMode);
+    updateSortBtn();
+    loadSampleList(searchInput.value);
+}
+
+function updateSortBtn() {
+    const btn = document.getElementById('sortToggleBtn');
+    if (!btn) return;
+    const icon = btn.querySelector('.sort-icon');
+    const label = btn.querySelector('.sort-label');
+    if (sortMode === 'manual') {
+        btn.classList.add('sort-manual-active');
+        if (icon) icon.textContent = '✋';
+        if (label) label.textContent = t('messages.sortManual');
+    } else {
+        btn.classList.remove('sort-manual-active');
+        if (icon) icon.textContent = '📅';
+        if (label) label.textContent = t('messages.sortByDate');
+    }
+}
+
+window.toggleSortMode = toggleSortMode;
+
+// Initialize sort button on load
+document.addEventListener('DOMContentLoaded', () => {
+    updateSortBtn();
+});
