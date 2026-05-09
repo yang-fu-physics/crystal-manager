@@ -1116,6 +1116,54 @@ input[type="datetime-local"]:focus {
     padding: 20px;
 }
 
+/* INCA-style table: elements as columns, spectra as rows */
+.edx-result-type {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(108, 92, 231, 0.08);
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.edx-table-inca th {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.edx-table-inca td {
+    text-align: center;
+    font-family: 'Courier New', monospace;
+    font-size: 19px;
+}
+
+.edx-row-label {
+    font-family: var(--font-family) !important;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left !important;
+    white-space: nowrap;
+}
+
+.edx-avg-row td {
+    font-weight: 700;
+    color: var(--accent);
+    border-top: 2px solid var(--accent);
+    background: rgba(108, 92, 231, 0.04);
+}
+
+.edx-avg-row .edx-row-label {
+    color: var(--accent);
+}
+
 .recognizing {
     display: flex;
     align-items: center;

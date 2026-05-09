@@ -42,7 +42,7 @@ const translations = {
             saveBeforeUpload: "请先保存样品后再上传文件", uploadFailed: "上传失败", uploadSuccess: "上传成功",
             recognizing: "正在调用 AI 识别...", recognizeFailed: "识别失败", edxSuccess: "EDX 识别完成",
             noData: "未识别到元素数据", recognizeErrorPrefix: "识别失败: ", confirmDeleteFile: "确定要删除此文件吗？", confirmLogout: "确定要退出登录吗？",
-            edxHeader: { element: "元素", wt: "质量百分比 (%)", at: "原子百分比 (%)", nodata: "暂无识别数据，请点击「AI 识别」按钮" },
+            edxHeader: { element: "元素", wt: "质量百分比 (%)", at: "原子百分比 (%)", nodata: "暂无识别数据，请点击「AI 识别」按钮", spectrum: "谱图", average: "平均值", atomicPercent: "原子百分比", weightPercent: "质量百分比" },
             aiBtn: "🤖 AI 识别", delBtn: "× 删除",
             todoSynced: "已同步到 Microsoft To Do", todoSyncFailed: "To Do 同步失败: {0}",
             exportSuccess: "导出成功", exportFailed: "导出失败",
@@ -80,7 +80,7 @@ const translations = {
             saveBeforeUpload: "Please save the sample before uploading files", uploadFailed: "Upload failed", uploadSuccess: "Upload successful",
             recognizing: "Calling AI for recognition...", recognizeFailed: "Recognition failed", edxSuccess: "EDX Recognition complete",
             noData: "No element data identified", recognizeErrorPrefix: "Recognition failed: ", confirmDeleteFile: "Are you sure you want to delete this file?", confirmLogout: "Are you sure you want to logout?",
-            edxHeader: { element: "Element", wt: "Weight %", at: "Atomic %", nodata: "No data, click 'AI Recognition' button" },
+            edxHeader: { element: "Element", wt: "Weight %", at: "Atomic %", nodata: "No data, click 'AI Recognition' button", spectrum: "Spectrum", average: "Average", atomicPercent: "Atomic %", weightPercent: "Weight %" },
             aiBtn: "🤖 AI Recognize", delBtn: "× Delete",
             todoSynced: "Synced to Microsoft To Do", todoSyncFailed: "To Do sync failed: {0}",
             exportSuccess: "Export successful", exportFailed: "Export failed",
@@ -1254,6 +1254,64 @@ function renderXrd(xrdImages) {
     }).join('');
 }
 
+/**
+ * Build EDX table HTML from recognized data.
+ * Supports both new INCA format {elements, spectra, average} and
+ * legacy format [{element, weight_percent, atomic_percent}, ...].
+ */
+function buildEdxTableHtml(recognizedData) {
+    if (!recognizedData) {
+        return `<div class="edx-no-data">${t('messages.edxHeader.nodata')}</div>`;
+    }
+
+    // New INCA table format
+    if (typeof recognizedData === 'object' && !Array.isArray(recognizedData) && recognizedData.elements) {
+        const elements = recognizedData.elements || [];
+        const spectra = recognizedData.spectra || [];
+        const average = recognizedData.average || null;
+        const resultType = recognizedData.result_type || 'atomic_percent';
+        const typeLabel = resultType === 'weight_percent' ? t('messages.edxHeader.weightPercent') : t('messages.edxHeader.atomicPercent');
+
+        if (elements.length === 0) {
+            return `<div class="edx-no-data">${t('messages.edxHeader.nodata')}</div>`;
+        }
+
+        let html = `<div class="edx-result-type">${typeLabel}</div>`;
+        html += '<table class="edx-table edx-table-inca">';
+        // Header row: first column empty, then element names
+        html += '<thead><tr><th></th>';
+        elements.forEach(el => { html += `<th>${escapeHtml(el)}</th>`; });
+        html += '</tr></thead><tbody>';
+        // Spectra rows
+        spectra.forEach(sp => {
+            html += `<tr><td class="edx-row-label">${escapeHtml(sp.label || '')}</td>`;
+            (sp.values || []).forEach(v => { html += `<td>${v ?? '—'}</td>`; });
+            html += '</tr>';
+        });
+        // Average row (highlighted)
+        if (average && average.values) {
+            html += `<tr class="edx-avg-row"><td class="edx-row-label">${escapeHtml(average.label || t('messages.edxHeader.average'))}</td>`;
+            (average.values || []).forEach(v => { html += `<td>${v ?? '—'}</td>`; });
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    // Legacy array format
+    if (Array.isArray(recognizedData) && recognizedData.length > 0) {
+        let html = '<table class="edx-table">';
+        html += `<thead><tr><th>${t('messages.edxHeader.element')}</th><th>${t('messages.edxHeader.wt')}</th><th>${t('messages.edxHeader.at')}</th></tr></thead><tbody>`;
+        recognizedData.forEach(d => {
+            html += `<tr><td>${escapeHtml(d.element)}</td><td>${d.weight_percent ?? '—'}</td><td>${d.atomic_percent ?? '—'}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        return html;
+    }
+
+    return `<div class="edx-no-data">${t('messages.edxHeader.nodata')}</div>`;
+}
+
 function renderEdxList(edxImages) {
     if (edxImages.length === 0) {
         edxList.innerHTML = '';
@@ -1263,33 +1321,7 @@ function renderEdxList(edxImages) {
     edxList.innerHTML = edxImages.map(edx => {
         const src = getUploadUrl(edx.filepath);
         const thumbSrc = src + '?thumb=1';
-        const hasData = edx.recognized_data && edx.recognized_data.length > 0;
-
-        let tableHtml = '';
-        if (hasData) {
-            tableHtml = `
-                <table class="edx-table">
-                    <thead>
-                        <tr>
-                            <th>${t('messages.edxHeader.element')}</th>
-                            <th>${t('messages.edxHeader.wt')}</th>
-                            <th>${t('messages.edxHeader.at')}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${edx.recognized_data.map(d => `
-                            <tr>
-                                <td>${escapeHtml(d.element)}</td>
-                                <td>${d.weight_percent ?? '—'}</td>
-                                <td>${d.atomic_percent ?? '—'}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        } else {
-            tableHtml = `<div class="edx-no-data">${t('messages.edxHeader.nodata')}</div>`;
-        }
+        const tableHtml = buildEdxTableHtml(edx.recognized_data);
 
         return `
             <div class="edx-card">
@@ -1412,28 +1444,20 @@ async function recognizeEdx(edxId, btn) {
         }
 
         const data = await resp.json();
-        const results = data.recognized_data || [];
+        const results = data.recognized_data;
 
-        if (results.length > 0) {
-            tableContainer.innerHTML = `
-                <table class="edx-table">
-                    <thead>
-                        <tr><th>${t('messages.edxHeader.element')}</th><th>${t('messages.edxHeader.wt')}</th><th>${t('messages.edxHeader.at')}</th></tr>
-                    </thead>
-                    <tbody>
-                        ${results.map(d => `
-                            <tr>
-                                <td>${escapeHtml(d.element)}</td>
-                                <td>${d.weight_percent ?? '—'}</td>
-                                <td>${d.atomic_percent ?? '—'}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
+        const html = buildEdxTableHtml(results);
+        tableContainer.innerHTML = html;
+
+        // Check if we got meaningful data
+        const hasData = results && (
+            (typeof results === 'object' && !Array.isArray(results) && results.elements && results.elements.length > 0) ||
+            (Array.isArray(results) && results.length > 0)
+        );
+
+        if (hasData) {
             showToast(t('messages.edxSuccess'), 'success');
         } else {
-            tableContainer.innerHTML = `<div class="edx-no-data">${t('messages.noData')}</div>`;
             showToast(t('messages.noData'), 'warning');
         }
     } catch (e) {
