@@ -248,7 +248,7 @@ def get_sample(sample_id):
 
 def create_sample(data):
     """新建样品"""
-    now = datetime.now().isoformat()
+    now = config.get_local_now().isoformat()
     conn = get_db()
     try:
         conn.execute(
@@ -284,7 +284,7 @@ def create_sample(data):
 
 def update_sample(sample_id, data):
     """更新样品"""
-    now = datetime.now().isoformat()
+    now = config.get_local_now().isoformat()
     conn = get_db()
 
     # 如果 id 被修改了，需要更新关联表
@@ -393,7 +393,7 @@ def delete_sample(sample_id):
 # ============================================================
 
 def add_photo(sample_id, filename, filepath):
-    now = datetime.now().isoformat()
+    now = config.get_local_now().isoformat()
     conn = get_db()
     try:
         cursor = conn.execute(
@@ -426,7 +426,7 @@ def delete_photo(photo_id):
 
 
 def add_edx_image(sample_id, filename, filepath):
-    now = datetime.now().isoformat()
+    now = config.get_local_now().isoformat()
     conn = get_db()
     try:
         cursor = conn.execute(
@@ -471,7 +471,7 @@ def delete_edx_image(edx_id):
 
 
 def add_xrd_image(sample_id, filename, filepath):
-    now = datetime.now().isoformat()
+    now = config.get_local_now().isoformat()
     conn = get_db()
     try:
         cursor = conn.execute(
@@ -504,7 +504,7 @@ def delete_xrd_image(xrd_id):
 
 
 def add_data_file(sample_id, filename, filepath):
-    now = datetime.now().isoformat()
+    now = config.get_local_now().isoformat()
     conn = get_db()
     try:
         cursor = conn.execute(
@@ -531,7 +531,7 @@ def delete_data_file(file_id):
 
 
 def add_other_file(sample_id, filename, filepath):
-    now = datetime.now().isoformat()
+    now = config.get_local_now().isoformat()
     conn = get_db()
     try:
         cursor = conn.execute(
@@ -575,7 +575,7 @@ def get_todo_task(sample_id):
 
 def upsert_todo_task(sample_id, task_id, sintering_end):
     """插入或更新 To Do 任务映射"""
-    now = datetime.now().isoformat()
+    now = config.get_local_now().isoformat()
     conn = get_db()
     try:
         conn.execute(

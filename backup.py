@@ -120,7 +120,7 @@ def run_backup() -> str:
     执行一次备份，返回备份目录路径。
     可安全地在后台线程中调用。
     """
-    ts = datetime.now().strftime(TIMESTAMP_FMT)
+    ts = config.get_local_now().strftime(TIMESTAMP_FMT)
     dest_dir = os.path.join(config.BACKUP_FOLDER, ts)
     os.makedirs(dest_dir, exist_ok=True)
 
@@ -190,7 +190,7 @@ def run_full_backup() -> str:
     执行一次完整备份，将数据库 + 整个 uploads 目录打包为 zip 文件。
     返回 zip 文件路径。
     """
-    ts = datetime.now().strftime(TIMESTAMP_FMT)
+    ts = config.get_local_now().strftime(TIMESTAMP_FMT)
     zip_name = f"full_{ts}.zip"
     zip_path = os.path.join(config.FULL_BACKUP_FOLDER, zip_name)
 

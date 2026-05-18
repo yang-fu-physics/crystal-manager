@@ -7,6 +7,19 @@
 """
 
 import os
+from datetime import datetime, timezone, timedelta
+
+# ============================================================
+# 系统时间配置
+# ============================================================
+# 部署在不同时区的服务器上时，可修改此偏移量（如中国时区为 8）
+TIMEZONE_OFFSET_HOURS = 8
+
+def get_local_now() -> datetime:
+    """获取配置时区的当前时间，返回 naive datetime 以保持与现有格式兼容"""
+    utc_now = datetime.now(timezone.utc)
+    local_now = utc_now + timedelta(hours=TIMEZONE_OFFSET_HOURS)
+    return local_now.replace(tzinfo=None)
 
 # ============================================================
 # 登录密码 (局域网安全)

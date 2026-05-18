@@ -739,7 +739,7 @@ def export_samples():
         BytesIO(output.getvalue().encode('utf-8-sig')),
         mimetype='text/csv; charset=utf-8',
         as_attachment=True,
-        download_name=f'samples_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        download_name=f'samples_export_{config.get_local_now().strftime("%Y%m%d_%H%M%S")}.csv'
     )
     return response
 

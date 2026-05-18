@@ -14,6 +14,7 @@ A local web application designed to manage all information regarding samples obt
 - **EDX Analysis** — Upload EDX spectrum images (auto-generates thumbnails) → uses GPT Vision API to automatically recognize elemental composition.
 - **Data & Other Files** — Upload/download `.dat/.csv/.txt` and any other ad-hoc attachment files with reliable strict original filename retention.
 - **Microsoft To Do Integration** — Bind your Microsoft account to automatically sync sintering end times directly to To Do for robust cross-device reminders.
+- **Global Timezone Configuration** — Independent timezone setting decoupled from server location to ensure consistent time synchronization between frontend and database.
 - **Bilingual & Responsive UI** — Seamless dynamic i18n switching (EN/ZH); deep layout and touch optimizations for mobile and tablet, plus a widescreen fullscreen mode.
 - **Auto Backup** — Immediate automatic backup on startup + scheduled incremental hot backups (daily) + full compressed zip backups (weekly), alongside a comprehensive CLI restoration utility.
 
@@ -47,6 +48,7 @@ Then edit `config.py`:
 ```python
 LOGIN_PASSWORD = "your-password"                # Login password
 APP_PORT = 5000                                 # Server port
+TIMEZONE_OFFSET_HOURS = 8                       # Timezone offset (e.g. 8 for CST)
 OPENAI_API_KEY = "sk-your-api-key"              # API Key for EDX recognition
 OPENAI_BASE_URL = "https://api.openai.com/v1/"  # Reverse proxy / base URL
 OPENAI_MODEL = "gpt-4o"                         # Model name
