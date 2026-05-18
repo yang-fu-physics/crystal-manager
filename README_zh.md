@@ -14,6 +14,7 @@
 - **EDX 能谱分析** — 上传 EDX 谱图生成缩略图 → 调用 GPT Vision API 自动识别元素成分
 - **数据与附件区** — 支持上传/下载 `.dat/.csv/.txt` 等实验数据文件以及不限格式的其他附件，完美还原原始文件名
 - **Microsoft To Do 深度集成** — 绑定微软账户，自动同步样品的烧制结束时间，实现高效的多端到期提醒
+- **系统级时区配置** — 独立于部署服务器所在地的时区设置，确保前端展示与后端数据库时间无缝一致
 - **双语与响应式设计** — 支持中英文 (i18n) 动态无缝切换；为手机、平板深度优化的独立排版结构和交互体验；提供全屏的宽屏浏览模式
 - **自动备份** — 启动时立即备份 + 每日增量热备 + 每周完整 zip 压缩备份，配套命令行极速恢复工具
 
@@ -47,6 +48,7 @@ cp config.py.example config.py
 ```python
 LOGIN_PASSWORD = "your-password"                # 登录密码
 APP_PORT = 5000                                 # 服务端口
+TIMEZONE_OFFSET_HOURS = 8                       # 系统时区偏移量 (如北京时间为 8)
 OPENAI_API_KEY = "sk-your-api-key"              # EDX 识别用 API Key
 OPENAI_BASE_URL = "https://api.openai.com/v1/"  # 代理地址
 OPENAI_MODEL = "gpt-4o"                         # 模型名称
