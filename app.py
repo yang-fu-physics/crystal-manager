@@ -886,18 +886,21 @@ def export_sample_word(sample_id):
     if edx_images:
         doc.add_heading('7. EDX Analysis / EDX 分析', level=1)
         for img in edx_images:
-            filepath = img.get('filepath')
-            if filepath and os.path.exists(filepath):
-                ext = os.path.splitext(filepath)[1].lower()
-                if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']:
-                    try:
-                        doc.add_picture(filepath, width=Inches(5.0))
-                    except Exception as e:
-                        doc.add_paragraph(f"[Image load failed / 图片加载失败: {str(e)}]")
+            r_data = img.get('recognized_data')
+            has_table = r_data and isinstance(r_data, dict) and 'elements' in r_data
+            
+            if not has_table:
+                filepath = img.get('filepath')
+                if filepath and os.path.exists(filepath):
+                    ext = os.path.splitext(filepath)[1].lower()
+                    if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']:
+                        try:
+                            doc.add_picture(filepath, width=Inches(5.0))
+                        except Exception as e:
+                            doc.add_paragraph(f"[Image load failed / 图片加载失败: {str(e)}]")
             
             # 添加 EDX 表格数据
-            r_data = img.get('recognized_data')
-            if r_data and isinstance(r_data, dict) and 'elements' in r_data:
+            if has_table:
                 elements = r_data.get('elements', [])
                 spectra = r_data.get('spectra', [])
                 average = r_data.get('average', {})
