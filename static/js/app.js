@@ -1358,15 +1358,27 @@ function renderEdxList(edxImages) {
         return;
     }
 
-    edxList.innerHTML = edxImages.map(edx => {
+    const showReorder = edxImages.length > 1;
+
+    edxList.innerHTML = edxImages.map((edx, idx) => {
         const src = getUploadUrl(edx.filepath);
         const thumbSrc = src + '?thumb=1';
         const tableHtml = buildEdxTableHtml(edx.recognized_data);
+        const isFirst = idx === 0;
+        const isLast = idx === edxImages.length - 1;
 
         return `
-            <div class="edx-card">
+            <div class="edx-card" data-edx-id="${edx.id}">
                 <div class="edx-card-header">
-                    <span class="edx-card-title">📊 ${escapeHtml(edx.filename)}</span>
+                    <div class="edx-card-title-row">
+                        ${showReorder ? `
+                            <div class="edx-reorder-btns">
+                                <button class="edx-move-btn" ${isFirst ? 'disabled' : ''} onclick="moveEdx(${edx.id}, 'up')" title="Move up">▲</button>
+                                <button class="edx-move-btn" ${isLast ? 'disabled' : ''} onclick="moveEdx(${edx.id}, 'down')" title="Move down">▼</button>
+                            </div>
+                        ` : ''}
+                        <span class="edx-card-title">📊 ${escapeHtml(edx.filename)}</span>
+                    </div>
                     <div class="edx-card-actions">
                         <button class="btn-accent btn-sm" onclick="recognizeEdx(${edx.id}, this)">
                             ${t('messages.aiBtn')}
@@ -1387,6 +1399,52 @@ function renderEdxList(edxImages) {
             </div>
         `;
     }).join('');
+}
+
+async function moveEdx(edxId, direction) {
+    const cards = Array.from(edxList.querySelectorAll('.edx-card'));
+    const currentIdx = cards.findIndex(c => c.dataset.edxId == edxId);
+    if (currentIdx === -1) return;
+
+    const targetIdx = direction === 'up' ? currentIdx - 1 : currentIdx + 1;
+    if (targetIdx < 0 || targetIdx >= cards.length) return;
+
+    // Swap DOM elements
+    const currentCard = cards[currentIdx];
+    const targetCard = cards[targetIdx];
+
+    if (direction === 'up') {
+        edxList.insertBefore(currentCard, targetCard);
+    } else {
+        edxList.insertBefore(targetCard, currentCard);
+    }
+
+    // Collect new order and save
+    const orderedIds = Array.from(edxList.querySelectorAll('.edx-card'))
+        .map(c => parseInt(c.dataset.edxId))
+        .filter(id => !isNaN(id));
+
+    try {
+        const resp = await fetch('/api/edx/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ordered_ids: orderedIds })
+        });
+        if (!resp.ok) throw new Error('Reorder failed');
+
+        // Re-render to update button states (first/last disabled)
+        if (currentSampleId) {
+            const sampleResp = await fetch(`/api/samples/${encodeURIComponent(currentSampleId)}`);
+            if (sampleResp.ok) {
+                const sample = await sampleResp.json();
+                originalData = JSON.parse(JSON.stringify(sample));
+                renderEdxList(sample.edx_images || []);
+            }
+        }
+    } catch (e) {
+        console.error('EDX reorder failed:', e);
+        showToast('Reorder failed', 'error');
+    }
 }
 
 function renderDataFiles(files) {
