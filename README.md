@@ -6,12 +6,13 @@ A local web application designed to manage all information regarding samples obt
 
 ## Features
 
-- **Sample Management** — Create, view, edit, delete, and search samples by status or other parameters.
-- **Basic Info** — Sample ID, Target Product, Status (Success/Fail/Pending/Growing), Unique Measurements (Electric/Magnetic), Growth Process & Sintering Time Tracking, Results, Notes.
+- **Sample Management** — Create, view, edit, delete, search, and manually sort samples via drag-and-drop.
+- **Basic Info** — Sample ID, Target Product, Status (Success/Fail/Pending/Growing/Completed), Unique Measurements (Electric/Magnetic), Growth Process & Sintering Time Tracking, Results, Notes.
 - **Enhanced Navigation & UX** — One-click fast previous/next navigation, auto-resizing textareas, intelligent anti-scroll during saves, and smart duplication that preserves custom reference elements.
 - **Mass Calculation** — Intuitive display of current context (ID/Product); input element molar ratios + mass of one reference element to automatically calculate the required mass for other elements.
-- **Photos** — Multiple photo uploads (supports camera capture), automatic lazy-loaded thumbnails, zoom preview, and perfectly restored original filenames upon download.
-- **EDX Analysis** — Upload EDX spectrum images (auto-generates thumbnails) → uses GPT Vision API to automatically recognize elemental composition.
+- **Export** — Export all samples as CSV or export individual sample reports (bilingual) directly to Microsoft Word (`.docx`).
+- **Photos & XRD** — Multiple photo/XRD image uploads (supports camera capture), automatic lazy-loaded thumbnails, zoom preview, and perfectly restored original filenames upon download. XRD/EDX statuses are automatically adjusted based on uploads.
+- **EDX Analysis** — Upload EDX spectrum images (auto-generates thumbnails) → uses GPT Vision API to automatically recognize INCA-style elemental composition, with manual reordering support for EDX data cards.
 - **Data & Other Files** — Upload/download `.dat/.csv/.txt` and any other ad-hoc attachment files with reliable strict original filename retention.
 - **Microsoft To Do Integration** — Bind your Microsoft account to automatically sync sintering end times directly to To Do for robust cross-device reminders.
 - **Global Timezone Configuration** — Independent timezone setting decoupled from server location to ensure consistent time synchronization between frontend and database.
@@ -113,9 +114,14 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 | GET | `/api/samples/<id>` | Sample details |
 | PUT | `/api/samples/<id>` | Update sample |
 | DELETE | `/api/samples/<id>` | Delete sample |
+| POST | `/api/samples/reorder` | Update sample sorting order |
+| GET | `/api/samples/export` | Export all samples to CSV |
+| GET | `/api/samples/<id>/export_word`| Export sample to Word |
 | POST | `/api/samples/<id>/photos` | Upload photos |
+| POST | `/api/samples/<id>/xrd` | Upload XRD images |
 | POST | `/api/samples/<id>/edx` | Upload EDX images |
 | POST | `/api/edx/<id>/recognize` | AI EDX Recognition |
+| POST | `/api/edx/reorder` | Update EDX images order |
 | POST | `/api/samples/<id>/datafiles` | Upload data files |
 | POST | `/api/samples/<id>/otherfiles`| Upload other files |
 | POST | `/api/calculate_mass` | Calculate element masses |
