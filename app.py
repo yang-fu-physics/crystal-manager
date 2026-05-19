@@ -504,9 +504,11 @@ def recognize_edx(edx_id):
     except json.JSONDecodeError:
         # GPT 返回的不是有效 JSON，原样返回让前端处理
         app.logger.error(f"[EDX 识别] ❌ JSON 解析失败, AI 返回内容:\n{result_text}")
+        models.update_edx_recognized_data(edx_id, None)
         return jsonify({'error': '识别结果格式异常', 'raw': result_text}), 422
     except Exception as e:
         app.logger.error(f"[EDX 识别] ❌ API 调用失败: {e}", exc_info=True)
+        models.update_edx_recognized_data(edx_id, None)
         return jsonify({'error': f'GPT API 调用失败: {str(e)}'}), 500
 
 

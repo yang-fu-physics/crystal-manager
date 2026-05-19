@@ -1582,7 +1582,7 @@ async function recognizeEdx(edxId, btn) {
         // Only update DOM if still on the same sample
         const currentTableContainer = document.getElementById(`edxTable_${edxId}`);
         if (currentSampleId === recognizingForSampleId && currentTableContainer) {
-            currentTableContainer.innerHTML = `<div class="edx-no-data" style="color:var(--danger)">${t('messages.recognizeErrorPrefix')}${escapeHtml(e.message)}</div>`;
+            currentTableContainer.innerHTML = buildEdxTableHtml(null);
         }
         showToast(e.message, 'error');
     } finally {
