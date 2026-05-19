@@ -514,6 +514,21 @@ def delete_edx(edx_id):
     return jsonify({'success': True})
 
 
+@app.route('/api/edx/reorder', methods=['POST'])
+def reorder_edx():
+    """更新 EDX 图片排序顺序"""
+    data = request.get_json()
+    if not data or 'ordered_ids' not in data:
+        return jsonify({'error': 'Missing ordered_ids'}), 400
+
+    ordered_ids = data['ordered_ids']
+    if not isinstance(ordered_ids, list):
+        return jsonify({'error': 'ordered_ids must be an array'}), 400
+
+    models.reorder_edx_images(ordered_ids)
+    return jsonify({'success': True})
+
+
 # ============================================================
 # XRD API
 # ============================================================

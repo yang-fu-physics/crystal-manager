@@ -59,6 +59,7 @@ def init_db():
             filename TEXT NOT NULL,
             filepath TEXT NOT NULL,
             recognized_data TEXT DEFAULT '[]',
+            sort_order INTEGER DEFAULT 0,
             uploaded_at TEXT,
             FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
         );
@@ -125,6 +126,12 @@ def init_db():
         cursor.execute("SELECT sort_order FROM samples LIMIT 1")
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE samples ADD COLUMN sort_order INTEGER DEFAULT 0")
+
+    # Dynamic migration for edx_images sort_order
+    try:
+        cursor.execute("SELECT sort_order FROM edx_images LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE edx_images ADD COLUMN sort_order INTEGER DEFAULT 0")
 
     # todo_tasks 表: 记录 sample_id ↔ Microsoft To Do task_id 映射
     cursor.execute("""
@@ -221,7 +228,7 @@ def get_sample(sample_id):
         sample['photos'] = [dict(r) for r in
                             conn.execute("SELECT * FROM photos WHERE sample_id = ? ORDER BY id", (sample_id,)).fetchall()]
         sample['edx_images'] = [dict(r) for r in
-                                conn.execute("SELECT * FROM edx_images WHERE sample_id = ? ORDER BY id",
+                                conn.execute("SELECT * FROM edx_images WHERE sample_id = ? ORDER BY sort_order ASC, id ASC",
                                              (sample_id,)).fetchall()]
         sample['xrd_images'] = [dict(r) for r in
                                 conn.execute("SELECT * FROM xrd_images WHERE sample_id = ? ORDER BY id",
@@ -616,6 +623,22 @@ def reorder_samples(ordered_ids):
             conn.execute(
                 "UPDATE samples SET sort_order = ? WHERE id = ?",
                 (idx, sample_id)
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def reorder_edx_images(ordered_ids):
+    """批量更新 EDX 图片排序顺序
+    ordered_ids: 按照期望顺序排列的 edx_images ID 列表
+    """
+    conn = get_db()
+    try:
+        for idx, edx_id in enumerate(ordered_ids):
+            conn.execute(
+                "UPDATE edx_images SET sort_order = ? WHERE id = ?",
+                (idx, edx_id)
             )
         conn.commit()
     finally:
