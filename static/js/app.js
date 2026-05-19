@@ -21,6 +21,7 @@ const translations = {
         form: {
             newSampleTitle: "新建样品", editSampleTitle: "编辑样品", copySampleTitle: "复制样品 — 请输入新编号",
             copyTitle: "复制此样品的流程、产物、元素配比", copyBtn: "复制样品", cancelBtn: "退出编辑", deleteBtn: "删除", saveBtn: "保存",
+            exportWordBtn: "导出 Word", exportWordTitle: "导出为 Word 文档",
             sections: { basicInfo: "基本信息", growthProcess: "生长流程", results: "结果", notes: "额外备注", calculator: "元素比例 & 质量计算", photos: "实物照片", xrd: "XRD 衍射分析", edx: "EDX 能谱分析", dataFiles: "数据文件 (.dat)", otherFiles: "其他文件" },
             fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态", measurements: "测量",
                        sinteringStart: "开始烧制时间", sinteringDuration: "烧制耗时 (小时)", sinteringEnd: "结束时间",
@@ -59,6 +60,7 @@ const translations = {
         form: {
             newSampleTitle: "New Sample", editSampleTitle: "Edit Sample", copySampleTitle: "Copy Sample — Enter New ID",
             copyTitle: "Copy process, product, and elemental ratios", copyBtn: "Copy", cancelBtn: "Cancel", deleteBtn: "Delete", saveBtn: "Save",
+            exportWordBtn: "Export Word", exportWordTitle: "Export to Word",
             sections: { basicInfo: "Basic Info", growthProcess: "Growth Process", results: "Results", notes: "Notes", calculator: "Element Ratios & Mass", photos: "Photos", xrd: "XRD Analysis", edx: "EDX Analysis", dataFiles: "Data Files (.dat)", otherFiles: "Other Files" },
             fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status", measurements: "Measurements",
                        sinteringStart: "Sintering Start", sinteringDuration: "Duration (hours)", sinteringEnd: "End Time",
@@ -94,9 +96,9 @@ const translations = {
 let currentLang = localStorage.getItem('crystal_lang') || 'zh'; // 默认中文
 
 function t(path, ...args) {
-    let result = path.split('.').reduce((obj, key) => (obj && obj[key] !== 'undefined') ? obj[key] : null, translations[currentLang]);
+    let result = path.split('.').reduce((obj, key) => (obj && obj[key] !== undefined) ? obj[key] : null, translations[currentLang]);
     if (result === null) {
-        result = path.split('.').reduce((obj, key) => (obj && obj[key] !== 'undefined') ? obj[key] : null, translations['zh']); // Fallback
+        result = path.split('.').reduce((obj, key) => (obj && obj[key] !== undefined) ? obj[key] : null, translations['zh']); // Fallback
         if (result === null) return path;
     }
     if (args.length > 0) {

@@ -797,11 +797,14 @@ def export_sample_word(sample_id):
         
     add_row('Sample ID / 样品编号', sample.get('id', ''))
     add_row('Target Product / 目标产物', sample.get('target_product', ''))
-    add_row('Formula / 化学式', _format_element_ratios(sample.get('element_ratios', [])))
     
-    status_map = {0: 'Fail / 失败', 1: 'Success / 成功', 2: 'Pending / 待定', 3: 'Growing / 生长中', 4: 'Done / 生长完成'}
+    status_map = {0: 'Fail / 失败', 1: 'Success / 成功'}
     s_val = sample.get('status', sample.get('is_successful', 2))
-    add_row('Status / 状态', status_map.get(s_val, str(s_val)))
+    if s_val not in [0, 1]:
+        s_val_str = 'Pending / 待定'
+    else:
+        s_val_str = status_map.get(s_val, 'Pending / 待定')
+    add_row('Status / 状态', s_val_str)
     
     measurements = []
     if sample.get('has_electric'): measurements.append('Electric / 电学')
@@ -810,8 +813,32 @@ def export_sample_word(sample_id):
     if sample.get('has_edx'): measurements.append('EDX')
     add_row('Measurements / 测量', ', '.join(measurements) if measurements else 'None / 无')
     
+    # 称重表格
+    ratios = sample.get('element_ratios', [])
+    masses = sample.get('actual_masses', [])
+    if ratios:
+        doc.add_heading('2. Element Ratios & Mass / 元素比例 & 质量计算', level=1)
+        calc_table = doc.add_table(rows=1, cols=4)
+        calc_table.style = 'Table Grid'
+        hdr = calc_table.rows[0].cells
+        hdr[0].text = 'Symbol / 元素符号'
+        hdr[1].text = 'Ratio / 摩尔比'
+        hdr[2].text = 'Molar Mass / 摩尔质量(g/mol)'
+        hdr[3].text = 'Mass / 实际质量(g)'
+        
+        for i, item in enumerate(ratios):
+            row_cells = calc_table.add_row().cells
+            row_cells[0].text = str(item.get('element', ''))
+            row_cells[1].text = str(item.get('ratio', ''))
+            molar_mass = elenmentsmasstable.get(item.get('element', ''), '')
+            row_cells[2].text = str(molar_mass)
+            mass_val = ''
+            if i < len(masses):
+                mass_val = str(masses[i].get('mass', ''))
+            row_cells[3].text = mass_val
+
     # 生长流程
-    doc.add_heading('2. Growth Process / 生长流程', level=1)
+    doc.add_heading('3. Growth Process / 生长流程', level=1)
     if sample.get('sintering_start') or sample.get('sintering_end'):
         p = doc.add_paragraph()
         p.add_run('Time / 时间: ').bold = True
@@ -822,7 +849,7 @@ def export_sample_word(sample_id):
         doc.add_paragraph(sample.get('growth_process', ''))
         
     # 结果和备注
-    doc.add_heading('3. Results & Notes / 结果与备注', level=1)
+    doc.add_heading('4. Results & Notes / 结果与备注', level=1)
     if sample.get('results'):
         p = doc.add_paragraph()
         p.add_run('Results / 结果: ').bold = True
@@ -849,15 +876,15 @@ def export_sample_word(sample_id):
                         doc.add_paragraph(f"[Image load failed / 图片加载失败: {str(e)}]")
                         
     # 照片
-    add_image_section('4. Photos / 样品照片', sample.get('photos', []))
+    add_image_section('5. Photos / 样品照片', sample.get('photos', []))
     
     # XRD
-    add_image_section('5. XRD Analysis / XRD 分析', sample.get('xrd_images', []))
+    add_image_section('6. XRD Analysis / XRD 分析', sample.get('xrd_images', []))
     
     # EDX
     edx_images = sample.get('edx_images', [])
     if edx_images:
-        doc.add_heading('6. EDX Analysis / EDX 分析', level=1)
+        doc.add_heading('7. EDX Analysis / EDX 分析', level=1)
         for img in edx_images:
             filepath = img.get('filepath')
             if filepath and os.path.exists(filepath):
@@ -865,8 +892,6 @@ def export_sample_word(sample_id):
                 if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']:
                     try:
                         doc.add_picture(filepath, width=Inches(5.0))
-                        p = doc.add_paragraph(img.get('filename', ''))
-                        p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                     except Exception as e:
                         doc.add_paragraph(f"[Image load failed / 图片加载失败: {str(e)}]")
             
