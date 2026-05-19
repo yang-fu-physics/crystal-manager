@@ -422,28 +422,29 @@ def recognize_edx(edx_id):
                         {
                             "type": "text",
                             "text": (
-                                "这是一张 INCA 软件的 EDX (Energy Dispersive X-ray) 定量分析截图。"
-                                "请识别截图中的表格数据，包括：\n"
-                                "1. 所有元素名称（如 Fe, Te, Ta 等，即表头列名）\n"
-                                "2. 结果类型（原子百分比 或 质量百分比，看截图底部的\"结果类型\"下拉框）\n"
-                                "3. 每个谱图（谱图1、谱图2...）对应各元素的数值\n"
-                                "4. 统计数据中的平均值行\n\n"
-                                "请仅返回一个 JSON 对象，格式如下，不要包含任何其他文字或 markdown 标记：\n"
+                                "This is a screenshot of EDX (Energy Dispersive X-ray) quantitative analysis from INCA software. "
+                                "Please recognize the table data in the screenshot, including:\n"
+                                "1. All element names (e.g. Fe, Te, Ta, etc., i.e. the column headers)\n"
+                                "2. Result type (atomic percent or weight percent, check the 'Result Type' dropdown at the bottom)\n"
+                                "3. The values for each spectrum (Spectrum 1, Spectrum 2...) for each element\n"
+                                "4. The average row in the statistics section\n\n"
+                                "Return ONLY a JSON object in the following format, without any other text or markdown markup:\n"
                                 '{\n'
                                 '  "elements": ["Fe", "Te", "Ta"],\n'
                                 '  "result_type": "atomic_percent",\n'
                                 '  "spectra": [\n'
-                                '    {"label": "谱图1", "values": [2.05, 64.26, 33.70]},\n'
-                                '    {"label": "谱图2", "values": [2.29, 63.86, 33.85]}\n'
+                                '    {"label": "Spectrum 1", "values": [2.05, 64.26, 33.70]},\n'
+                                '    {"label": "Spectrum 2", "values": [2.29, 63.86, 33.85]}\n'
                                 '  ],\n'
-                                '  "average": {"label": "平均值", "values": [1.68, 64.21, 34.11]}\n'
+                                '  "average": {"label": "Average", "values": [1.68, 64.21, 34.11]}\n'
                                 '}\n\n'
-                                "说明：\n"
-                                "- elements 数组包含所有元素符号，与表头列对应\n"
-                                "- result_type 为 \"atomic_percent\"（原子百分比）或 \"weight_percent\"（质量百分比）\n"
-                                "- spectra 数组中每项的 values 顺序与 elements 一一对应\n"
-                                "- average 是统计数据中的平均值行\n"
-                                "- 数值保留截图中显示的小数位数"
+                                "Notes:\n"
+                                "- The elements array contains all element symbols, corresponding to the table columns\n"
+                                "- result_type is either \"atomic_percent\" (atomic percent) or \"weight_percent\" (weight percent)\n"
+                                "- Each item in the spectra array has values in the same order as elements\n"
+                                "- average is the average row from the statistics section\n"
+                                "- Preserve the decimal places as shown in the screenshot\n"
+                                "- All labels must be in English (e.g. 'Spectrum 1', 'Average'), even if the screenshot is in another language"
                             )
                         },
                         {
@@ -486,7 +487,7 @@ def recognize_edx(edx_id):
             for sp in spectra:
                 app.logger.info(f"  {sp.get('label', '?')}: {sp.get('values', [])}")
             if average:
-                app.logger.info(f"  {average.get('label', '平均值')}: {average.get('values', [])}")
+                app.logger.info(f"  {average.get('label', 'Average')}: {average.get('values', [])}")
         else:
             # 旧格式兼容
             app.logger.info(f"[EDX 识别] ✅ 解析成功, 识别到 {len(recognized_data)} 个元素:")

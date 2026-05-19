@@ -21,7 +21,7 @@ const translations = {
         form: {
             newSampleTitle: "新建样品", editSampleTitle: "编辑样品", copySampleTitle: "复制样品 — 请输入新编号",
             copyTitle: "复制此样品的流程、产物、元素配比", copyBtn: "复制样品", cancelBtn: "退出编辑", deleteBtn: "删除", saveBtn: "保存",
-            sections: { basicInfo: "基本信息", growthProcess: "生长流程", results: "结果", notes: "额外备注", calculator: "元素比例 & 质量计算", photos: "实物照片", edx: "EDX 能谱分析", dataFiles: "数据文件 (.dat)", otherFiles: "其他文件" },
+            sections: { basicInfo: "基本信息", growthProcess: "生长流程", results: "结果", notes: "额外备注", calculator: "元素比例 & 质量计算", photos: "实物照片", xrd: "XRD 衍射分析", edx: "EDX 能谱分析", dataFiles: "数据文件 (.dat)", otherFiles: "其他文件" },
             fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态", measurements: "测量",
                        sinteringStart: "开始烧制时间", sinteringDuration: "烧制耗时 (小时)", sinteringEnd: "结束时间",
                        sinteringNowBtn: "当前时间", sinteringNowTitle: "设为当前时间" },
@@ -59,7 +59,7 @@ const translations = {
         form: {
             newSampleTitle: "New Sample", editSampleTitle: "Edit Sample", copySampleTitle: "Copy Sample — Enter New ID",
             copyTitle: "Copy process, product, and elemental ratios", copyBtn: "Copy", cancelBtn: "Cancel", deleteBtn: "Delete", saveBtn: "Save",
-            sections: { basicInfo: "Basic Info", growthProcess: "Growth Process", results: "Results", notes: "Notes", calculator: "Element Ratios & Mass", photos: "Photos", edx: "EDX Analysis", dataFiles: "Data Files (.dat)", otherFiles: "Other Files" },
+            sections: { basicInfo: "Basic Info", growthProcess: "Growth Process", results: "Results", notes: "Notes", calculator: "Element Ratios & Mass", photos: "Photos", xrd: "XRD Analysis", edx: "EDX Analysis", dataFiles: "Data Files (.dat)", otherFiles: "Other Files" },
             fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status", measurements: "Measurements",
                        sinteringStart: "Sintering Start", sinteringDuration: "Duration (hours)", sinteringEnd: "End Time",
                        sinteringNowBtn: "Now", sinteringNowTitle: "Set to current time" },
@@ -1264,6 +1264,20 @@ function buildEdxTableHtml(recognizedData) {
         return `<div class="edx-no-data">${t('messages.edxHeader.nodata')}</div>`;
     }
 
+    // Helper: translate Chinese EDX labels to English for backward compatibility
+    function translateEdxLabel(label) {
+        if (!label) return label;
+        // Replace Chinese spectrum labels: 谱图1 -> Spectrum 1, 谱图2 -> Spectrum 2, etc.
+        const spectrumMatch = label.match(/^谱图\s*(\d+)$/);
+        if (spectrumMatch) return `Spectrum ${spectrumMatch[1]}`;
+        // Replace Chinese average label
+        if (label === '平均值') return 'Average';
+        // Replace Chinese result type labels (unlikely in label field, but just in case)
+        if (label === '原子百分比') return 'Atomic %';
+        if (label === '质量百分比') return 'Weight %';
+        return label;
+    }
+
     // New INCA table format
     if (typeof recognizedData === 'object' && !Array.isArray(recognizedData) && recognizedData.elements) {
         const elements = recognizedData.elements || [];
@@ -1284,13 +1298,13 @@ function buildEdxTableHtml(recognizedData) {
         html += '</tr></thead><tbody>';
         // Spectra rows
         spectra.forEach(sp => {
-            html += `<tr><td class="edx-row-label">${escapeHtml(sp.label || '')}</td>`;
+            html += `<tr><td class="edx-row-label">${escapeHtml(translateEdxLabel(sp.label || ''))}</td>`;
             (sp.values || []).forEach(v => { html += `<td>${v ?? '—'}</td>`; });
             html += '</tr>';
         });
         // Average row (highlighted)
         if (average && average.values) {
-            html += `<tr class="edx-avg-row"><td class="edx-row-label">${escapeHtml(average.label || t('messages.edxHeader.average'))}</td>`;
+            html += `<tr class="edx-avg-row"><td class="edx-row-label">${escapeHtml(translateEdxLabel(average.label || t('messages.edxHeader.average')))}</td>`;
             (average.values || []).forEach(v => { html += `<td>${v ?? '—'}</td>`; });
             html += '</tr>';
         }
