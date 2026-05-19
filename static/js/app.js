@@ -789,6 +789,9 @@ async function saveSample() {
         return;
     }
 
+    // Capture sample ID at start to detect navigation during async save
+    const savingForSampleId = currentSampleId || id;
+
     let statusVal = 1;
     if (toggleFail.classList.contains('active')) statusVal = 0;
     else if (togglePending.classList.contains('active')) statusVal = 2;
@@ -850,7 +853,7 @@ async function saveSample() {
                 body: JSON.stringify(data)
             });
         } else {
-            resp = await fetch(`/api/samples/${encodeURIComponent(currentSampleId || id)}`, {
+            resp = await fetch(`/api/samples/${encodeURIComponent(savingForSampleId)}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -875,13 +878,23 @@ async function saveSample() {
         } catch (e) {
             throw new Error("保存失败：服务器返回了无效的数据格式");
         }
-        currentSampleId = saved.id;
-        isNewSample = false;
-        originalData = JSON.parse(JSON.stringify(saved));
-        fillForm(saved);
-        showForm(t('form.editSampleTitle'), true, false);
+
+        // Race condition guard: only update form if the user is still viewing
+        // the same sample that was being saved. If they navigated away during
+        // the async save, just refresh the sample list silently.
+        if (currentSampleId === savingForSampleId || currentSampleId === saved.id || isNewSample) {
+            currentSampleId = saved.id;
+            isNewSample = false;
+            originalData = JSON.parse(JSON.stringify(saved));
+            fillForm(saved);
+            showForm(t('form.editSampleTitle'), true, false);
+            highlightActive(saved.id);
+        } else {
+            // User navigated away — don't overwrite the form, just update the list
+            console.log(`[saveSample] Skipped form update: saved ${saved.id} but now viewing ${currentSampleId}`);
+        }
+
         await loadSampleList(searchInput.value);
-        highlightActive(saved.id);
         showToast(t('messages.saveSuccess'), 'success');
 
         // 显示 To Do 同步结果
@@ -1169,17 +1182,20 @@ async function uploadFiles(files, type) {
         return;
     }
 
+    // Capture the sample ID at the start to detect navigation during upload
+    const uploadingSampleId = currentSampleId;
+
     const formData = new FormData();
     for (const file of files) {
         formData.append('file', file);
     }
 
     const urlMap = {
-        photos: `/api/samples/${encodeURIComponent(currentSampleId)}/photos`,
-        edx: `/api/samples/${encodeURIComponent(currentSampleId)}/edx`,
-        xrd: `/api/samples/${encodeURIComponent(currentSampleId)}/xrd`,
-        datafiles: `/api/samples/${encodeURIComponent(currentSampleId)}/datafiles`,
-        otherfiles: `/api/samples/${encodeURIComponent(currentSampleId)}/otherfiles`
+        photos: `/api/samples/${encodeURIComponent(uploadingSampleId)}/photos`,
+        edx: `/api/samples/${encodeURIComponent(uploadingSampleId)}/edx`,
+        xrd: `/api/samples/${encodeURIComponent(uploadingSampleId)}/xrd`,
+        datafiles: `/api/samples/${encodeURIComponent(uploadingSampleId)}/datafiles`,
+        otherfiles: `/api/samples/${encodeURIComponent(uploadingSampleId)}/otherfiles`
     };
 
     try {
@@ -1191,6 +1207,13 @@ async function uploadFiles(files, type) {
         if (!resp.ok) {
             const err = await resp.json();
             throw new Error(err.error || t('messages.uploadFailed'));
+        }
+
+        // Race condition guard: if user navigated away, don't modify the current form
+        if (currentSampleId !== uploadingSampleId) {
+            console.log(`[uploadFiles] Skipped post-upload actions: uploaded to ${uploadingSampleId} but now viewing ${currentSampleId}`);
+            showToast(t('messages.uploadSuccess'), 'success');
+            return;
         }
 
         // Auto update toggle and save if it's xrd or edx
@@ -1207,7 +1230,10 @@ async function uploadFiles(files, type) {
 
         if (!autoSaved) {
             showToast(t('messages.uploadSuccess'), 'success');
-            await selectSample(currentSampleId, false);
+            // Double-check again after the await, in case user navigated during saveSample
+            if (currentSampleId === uploadingSampleId) {
+                await selectSample(currentSampleId, false);
+            }
         }
     } catch (e) {
         showToast(e.message, 'error');
@@ -1438,6 +1464,9 @@ async function recognizeEdx(edxId, btn) {
     const tableContainer = document.getElementById(`edxTable_${edxId}`);
     const originalBtnText = btn.innerHTML;
 
+    // Capture the sample ID to detect navigation during long-running AI recognition
+    const recognizingForSampleId = currentSampleId;
+
     btn.disabled = true;
     btn.innerHTML = '⏳ ...';
     tableContainer.innerHTML = `
@@ -1460,8 +1489,17 @@ async function recognizeEdx(edxId, btn) {
         const data = await resp.json();
         const results = data.recognized_data;
 
+        // Race condition guard: if user navigated away, the DOM elements for this
+        // EDX entry may have been replaced. Re-query to check if they still exist.
+        const currentTableContainer = document.getElementById(`edxTable_${edxId}`);
+        if (currentSampleId !== recognizingForSampleId || !currentTableContainer) {
+            console.log(`[recognizeEdx] User navigated away from ${recognizingForSampleId} during AI recognition. Results saved to DB but not rendered.`);
+            showToast(t('messages.edxSuccess'), 'success');
+            return;
+        }
+
         const html = buildEdxTableHtml(results);
-        tableContainer.innerHTML = html;
+        currentTableContainer.innerHTML = html;
 
         // Check if we got meaningful data
         const hasData = results && (
@@ -1475,11 +1513,18 @@ async function recognizeEdx(edxId, btn) {
             showToast(t('messages.noData'), 'warning');
         }
     } catch (e) {
-        tableContainer.innerHTML = `<div class="edx-no-data" style="color:var(--danger)">${t('messages.recognizeErrorPrefix')}${escapeHtml(e.message)}</div>`;
+        // Only update DOM if still on the same sample
+        const currentTableContainer = document.getElementById(`edxTable_${edxId}`);
+        if (currentSampleId === recognizingForSampleId && currentTableContainer) {
+            currentTableContainer.innerHTML = `<div class="edx-no-data" style="color:var(--danger)">${t('messages.recognizeErrorPrefix')}${escapeHtml(e.message)}</div>`;
+        }
         showToast(e.message, 'error');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalBtnText;
+        // Only restore button if it still exists in the current DOM
+        if (btn && btn.isConnected) {
+            btn.disabled = false;
+            btn.innerHTML = originalBtnText;
+        }
     }
 }
 
@@ -1491,6 +1536,9 @@ window.recognizeEdx = recognizeEdx;
 // ============================================================
 async function deleteAttachment(type, id) {
     if (!confirm(t('messages.confirmDeleteFile'))) return;
+
+    // Capture the sample ID to guard against navigation during async delete
+    const deletingFromSampleId = currentSampleId;
 
     const urlMap = {
         photos: `/api/photos/${id}`,
@@ -1505,8 +1553,10 @@ async function deleteAttachment(type, id) {
         if (!resp.ok) throw new Error(t('messages.deleteFailed'));
 
         showToast(t('messages.deleteSuccess'), 'success');
-        // 重新加载（保持滚动位置）
-        if (currentSampleId) await selectSample(currentSampleId, false);
+        // 重新加载（保持滚动位置），但仅当用户仍在查看同一个样品时
+        if (currentSampleId && currentSampleId === deletingFromSampleId) {
+            await selectSample(currentSampleId, false);
+        }
     } catch (e) {
         showToast(e.message, 'error');
     }
