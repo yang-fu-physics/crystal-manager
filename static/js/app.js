@@ -167,6 +167,7 @@ const saveBtn = document.getElementById('saveBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const deleteBtn = document.getElementById('deleteBtn');
 const copyBtn = document.getElementById('copyBtn');
+const exportWordBtn = document.getElementById('exportWordBtn');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const formTitle = document.getElementById('formTitle');
@@ -334,6 +335,12 @@ function bindEvents() {
     cancelBtn.addEventListener('click', () => cancelEdit());
     deleteBtn.addEventListener('click', () => deleteSample());
     copyBtn.addEventListener('click', () => copySample());
+    if (exportWordBtn) {
+        exportWordBtn.addEventListener('click', () => {
+            if (!currentSampleId) return;
+            window.location.href = `/api/samples/${encodeURIComponent(currentSampleId)}/export_word`;
+        });
+    }
     prevBtn.addEventListener('click', () => navigateSample(1));   // 上一页：往列表后面走（旧数据）
     nextBtn.addEventListener('click', () => navigateSample(-1));  // 下一页：往列表前面走（新数据）
 
@@ -772,6 +779,7 @@ function showForm(title, showDelete, scrollToTop = true) {
     formTitle.textContent = title;
     deleteBtn.style.display = showDelete ? 'inline-flex' : 'none';
     copyBtn.style.display = showDelete ? 'inline-flex' : 'none';
+    if (exportWordBtn) exportWordBtn.style.display = showDelete ? 'inline-flex' : 'none';
     if (prevBtn) prevBtn.style.display = showDelete ? 'inline-flex' : 'none';
     if (nextBtn) nextBtn.style.display = showDelete ? 'inline-flex' : 'none';
     isEditing = true;
