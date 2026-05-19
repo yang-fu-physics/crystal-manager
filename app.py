@@ -14,6 +14,8 @@ from flask import Flask, request, jsonify, render_template, send_from_directory,
 from werkzeug.exceptions import HTTPException
 from functools import wraps
 from PIL import Image
+import docx
+from docx.shared import Inches, Pt
 
 # 当前目录加入 sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -758,6 +760,161 @@ def export_samples():
         download_name=f'samples_export_{config.get_local_now().strftime("%Y%m%d_%H%M%S")}.csv'
     )
     return response
+
+
+@app.route('/api/samples/<sample_id>/export_word', methods=['GET'])
+def export_sample_word(sample_id):
+    """导出单个样品为 Word 文档 (中英双语)"""
+    sample = models.get_sample(sample_id)
+    if not sample:
+        return jsonify({'error': '样品不存在'}), 404
+
+    try:
+        from docx import Document
+        from docx.shared import Inches, Pt
+        from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+    except ImportError:
+        return jsonify({'error': '未安装 python-docx 库，请联系管理员'}), 500
+
+    doc = Document()
+    
+    # 标题
+    title = doc.add_heading(f'Sample Report / 样品报告: {sample["id"]}', 0)
+    title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    
+    # 基本信息
+    doc.add_heading('1. Basic Information / 基本信息', level=1)
+    
+    table = doc.add_table(rows=0, cols=2)
+    table.style = 'Table Grid'
+    
+    def add_row(key, val):
+        row_cells = table.add_row().cells
+        row_cells[0].text = key
+        row_cells[1].text = str(val) if val else ''
+        
+    add_row('Sample ID / 样品编号', sample.get('id', ''))
+    add_row('Target Product / 目标产物', sample.get('target_product', ''))
+    add_row('Formula / 化学式', _format_element_ratios(sample.get('element_ratios', [])))
+    
+    status_map = {0: 'Fail / 失败', 1: 'Success / 成功', 2: 'Pending / 待定', 3: 'Growing / 生长中', 4: 'Done / 生长完成'}
+    s_val = sample.get('status', sample.get('is_successful', 2))
+    add_row('Status / 状态', status_map.get(s_val, str(s_val)))
+    
+    measurements = []
+    if sample.get('has_electric'): measurements.append('Electric / 电学')
+    if sample.get('has_magnetic'): measurements.append('Magnetic / 磁性')
+    if sample.get('has_xrd'): measurements.append('XRD')
+    if sample.get('has_edx'): measurements.append('EDX')
+    add_row('Measurements / 测量', ', '.join(measurements) if measurements else 'None / 无')
+    
+    # 生长流程
+    doc.add_heading('2. Growth Process / 生长流程', level=1)
+    if sample.get('sintering_start') or sample.get('sintering_end'):
+        p = doc.add_paragraph()
+        p.add_run('Time / 时间: ').bold = True
+        p.add_run(f"{sample.get('sintering_start', '—')} to {sample.get('sintering_end', '—')} ")
+        if sample.get('sintering_duration'):
+            p.add_run(f"({sample.get('sintering_duration')} h)")
+    if sample.get('growth_process'):
+        doc.add_paragraph(sample.get('growth_process', ''))
+        
+    # 结果和备注
+    doc.add_heading('3. Results & Notes / 结果与备注', level=1)
+    if sample.get('results'):
+        p = doc.add_paragraph()
+        p.add_run('Results / 结果: ').bold = True
+        doc.add_paragraph(sample.get('results', ''))
+    if sample.get('notes'):
+        p = doc.add_paragraph()
+        p.add_run('Notes / 备注: ').bold = True
+        doc.add_paragraph(sample.get('notes', ''))
+        
+    # 图片和图表辅助函数
+    def add_image_section(section_title, images):
+        if not images: return
+        doc.add_heading(section_title, level=1)
+        for img in images:
+            filepath = img.get('filepath')
+            if filepath and os.path.exists(filepath):
+                ext = os.path.splitext(filepath)[1].lower()
+                if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']:
+                    try:
+                        doc.add_picture(filepath, width=Inches(5.0))
+                        p = doc.add_paragraph(img.get('filename', ''))
+                        p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                    except Exception as e:
+                        doc.add_paragraph(f"[Image load failed / 图片加载失败: {str(e)}]")
+                        
+    # 照片
+    add_image_section('4. Photos / 样品照片', sample.get('photos', []))
+    
+    # XRD
+    add_image_section('5. XRD Analysis / XRD 分析', sample.get('xrd_images', []))
+    
+    # EDX
+    edx_images = sample.get('edx_images', [])
+    if edx_images:
+        doc.add_heading('6. EDX Analysis / EDX 分析', level=1)
+        for img in edx_images:
+            filepath = img.get('filepath')
+            if filepath and os.path.exists(filepath):
+                ext = os.path.splitext(filepath)[1].lower()
+                if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']:
+                    try:
+                        doc.add_picture(filepath, width=Inches(5.0))
+                        p = doc.add_paragraph(img.get('filename', ''))
+                        p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                    except Exception as e:
+                        doc.add_paragraph(f"[Image load failed / 图片加载失败: {str(e)}]")
+            
+            # 添加 EDX 表格数据
+            r_data = img.get('recognized_data')
+            if r_data and isinstance(r_data, dict) and 'elements' in r_data:
+                elements = r_data.get('elements', [])
+                spectra = r_data.get('spectra', [])
+                average = r_data.get('average', {})
+                result_type = r_data.get('result_type', 'atomic_percent')
+                
+                doc.add_paragraph(f"Result Type / 结果类型: {result_type}")
+                
+                if elements and spectra:
+                    edx_table = doc.add_table(rows=1, cols=len(elements) + 1)
+                    edx_table.style = 'Table Grid'
+                    hdr_cells = edx_table.rows[0].cells
+                    hdr_cells[0].text = 'Spectrum / 谱图'
+                    for i, el in enumerate(elements):
+                        hdr_cells[i+1].text = str(el)
+                        
+                    for sp in spectra:
+                        row_cells = edx_table.add_row().cells
+                        row_cells[0].text = str(sp.get('label', ''))
+                        vals = sp.get('values', [])
+                        for i in range(len(elements)):
+                            row_cells[i+1].text = str(vals[i]) if i < len(vals) else ''
+                            
+                    if average:
+                        row_cells = edx_table.add_row().cells
+                        row_cells[0].text = str(average.get('label', 'Average'))
+                        vals = average.get('values', [])
+                        for i in range(len(elements)):
+                            row_cells[i+1].text = str(vals[i]) if i < len(vals) else ''
+                            
+                doc.add_paragraph() # 空行
+
+    output = BytesIO()
+    doc.save(output)
+    output.seek(0)
+    
+    # 清理非法文件名字符
+    safe_id = "".join(c if (c.isalnum() or c in '-_.') else '_' for c in sample['id'])
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        as_attachment=True,
+        download_name=f'Sample_Report_{safe_id}.docx'
+    )
 
 
 # ============================================================
