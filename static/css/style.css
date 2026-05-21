@@ -1028,6 +1028,50 @@ input[type="datetime-local"]:focus {
     transform: scale(1.1);
 }
 
+.file-preview-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    aspect-ratio: 1;
+    position: relative;
+    cursor: default;
+}
+
+.file-preview-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: var(--text-primary);
+    width: 100%;
+    height: 100%;
+    gap: 8px;
+    padding: 10px;
+}
+
+.file-preview-link:hover {
+    color: var(--accent);
+}
+
+.file-preview-icon {
+    font-size: 32px;
+}
+
+.file-preview-name {
+    font-size: 14px;
+    text-align: center;
+    word-break: break-all;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
 /* ---------- EDX List ---------- */
 .edx-card {
     background: var(--bg-input);
