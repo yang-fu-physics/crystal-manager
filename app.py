@@ -889,6 +889,8 @@ def export_sample_word(sample_id):
                             p = doc.add_paragraph(img.get('filename', ''))
                             p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                         doc.add_picture(filepath, width=Inches(5.0))
+                        doc.paragraphs[-1].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                        doc.add_paragraph() # 添加空行，防止下一张图的名字与这张图混淆
                     except Exception as e:
                         err_msg = '图片加载失败' if lang == 'zh' else 'Image load failed'
                         doc.add_paragraph(f"[{err_msg}: {str(e)}]")
