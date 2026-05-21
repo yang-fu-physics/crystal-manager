@@ -340,7 +340,7 @@ function bindEvents() {
     if (exportWordBtn) {
         exportWordBtn.addEventListener('click', () => {
             if (!currentSampleId) return;
-            window.location.href = `/api/samples/${encodeURIComponent(currentSampleId)}/export_word`;
+            window.location.href = `/api/samples/${encodeURIComponent(currentSampleId)}/export_word?lang=${currentLang}`;
         });
     }
     prevBtn.addEventListener('click', () => navigateSample(1));   // 上一页：往列表后面走（旧数据）
@@ -1721,7 +1721,7 @@ window.logout = logout;
 // ============================================================
 async function exportSamples() {
     try {
-        const response = await fetch('/api/samples/export');
+        const response = await fetch(`/api/samples/export?lang=${currentLang}`);
         if (!response.ok) {
             showToast(t('messages.exportFailed'), 'error');
             return;
