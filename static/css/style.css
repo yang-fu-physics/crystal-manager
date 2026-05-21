@@ -1045,6 +1045,31 @@ input[type="datetime-local"]:focus {
     cursor: default;
 }
 
+.file-preview-open {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 24px;
+    height: 24px;
+    background: rgba(108, 92, 231, 0.85);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.file-preview-item:hover .file-preview-open {
+    display: flex;
+}
+
+.file-preview-open:hover {
+    background: var(--accent);
+    transform: scale(1.1);
+}
+
 .file-preview-link {
     display: flex;
     flex-direction: column;
