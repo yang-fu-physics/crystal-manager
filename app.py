@@ -964,14 +964,27 @@ def export_sample_word(sample_id):
     doc.save(output)
     output.seek(0)
     
-    # 清理非法文件名字符
-    safe_id = "".join(c if (c.isalnum() or c in '-_.') else '_' for c in sample['id'])
+    # 构造导出文件名：编号-目标产物-状态
+    def sanitize_filename(name):
+        # 允许字母、数字、中文、空格以及 -_.
+        return "".join(c if (c.isalnum() or c in '-_. ') else '_' for c in name)
+
+    safe_id = sanitize_filename(sample.get('id', '未命名'))
+    
+    target_prod = sample.get('target_product', '')
+    if not target_prod:
+        target_prod = '未知' if lang == 'zh' else 'Unknown'
+    safe_target = sanitize_filename(target_prod)
+    
+    safe_status = sanitize_filename(s_val_str)
+    
+    download_filename = f"{safe_id}-{safe_target}-{safe_status}.docx"
     
     return send_file(
         output,
         mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         as_attachment=True,
-        download_name=f'Sample_Report_{safe_id}.docx'
+        download_name=download_filename
     )
 
 
