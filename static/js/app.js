@@ -1280,13 +1280,30 @@ function renderXrd(xrdImages) {
 
     xrdList.innerHTML = xrdImages.map(p => {
         const src = getUploadUrl(p.filepath);
-        const thumbSrc = src + '?thumb=1';
-        return `
-            <div class="photo-item" onclick="openModal('${escapeJs(src)}')">
-                <img src="${thumbSrc}" alt="${escapeHtml(p.filename)}" loading="lazy">
-                <button class="photo-delete" onclick="event.stopPropagation(); deleteAttachment('xrd', ${p.id})" title="删除">×</button>
-            </div>
-        `;
+        const filename = p.filename || '';
+        const ext = filename.split('.').pop().toLowerCase();
+        const isImage = ['jpg', 'jpeg', 'png', 'bmp', 'tif', 'tiff'].includes(ext);
+
+        if (isImage) {
+            const thumbSrc = src + '?thumb=1';
+            return `
+                <div class="photo-item" onclick="openModal('${escapeJs(src)}')">
+                    <img src="${thumbSrc}" alt="${escapeHtml(filename)}" loading="lazy">
+                    <button class="photo-delete" onclick="event.stopPropagation(); deleteAttachment('xrd', ${p.id})" title="删除">×</button>
+                </div>
+            `;
+        } else {
+            // For non-image files (e.g. .raw, .csv), render as a file box
+            return `
+                <div class="photo-item file-preview-item" title="${escapeHtml(filename)}">
+                    <a href="${src}" download="${escapeHtml(filename)}" target="_blank" class="file-preview-link">
+                        <div class="file-preview-icon">📄</div>
+                        <div class="file-preview-name">${escapeHtml(filename)}</div>
+                    </a>
+                    <button class="photo-delete" onclick="event.stopPropagation(); event.preventDefault(); deleteAttachment('xrd', ${p.id})" title="删除">×</button>
+                </div>
+            `;
+        }
     }).join('');
 }
 
