@@ -876,7 +876,7 @@ def export_sample_word(sample_id):
         doc.add_paragraph(sample.get('notes', ''))
         
     # 图片和图表辅助函数
-    def add_image_section(section_title, images):
+    def add_image_section(section_title, images, show_filename=True):
         if not images: return
         doc.add_heading(section_title, level=1)
         for img in images:
@@ -885,20 +885,21 @@ def export_sample_word(sample_id):
                 ext = os.path.splitext(filepath)[1].lower()
                 if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']:
                     try:
+                        if show_filename:
+                            p = doc.add_paragraph(img.get('filename', ''))
+                            p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                         doc.add_picture(filepath, width=Inches(5.0))
-                        p = doc.add_paragraph(img.get('filename', ''))
-                        p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                     except Exception as e:
                         err_msg = '图片加载失败' if lang == 'zh' else 'Image load failed'
                         doc.add_paragraph(f"[{err_msg}: {str(e)}]")
                         
     # 照片
     photos_title = '5. 样品照片' if lang == 'zh' else '5. Photos'
-    add_image_section(photos_title, sample.get('photos', []))
+    add_image_section(photos_title, sample.get('photos', []), show_filename=False)
     
     # XRD
     xrd_title = '6. XRD 分析' if lang == 'zh' else '6. XRD Analysis'
-    add_image_section(xrd_title, sample.get('xrd_images', []))
+    add_image_section(xrd_title, sample.get('xrd_images', []), show_filename=True)
     
     # EDX
     edx_images = sample.get('edx_images', [])
