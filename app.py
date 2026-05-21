@@ -735,13 +735,17 @@ def _format_element_ratios(element_ratios):
 @app.route('/api/samples/export', methods=['GET'])
 def export_samples():
     """导出所有样品为 CSV 格式"""
+    lang = request.args.get('lang', 'zh')
     samples = models.get_all_samples()
 
     output = StringIO()
     writer = csv.writer(output)
 
     # 写入表头
-    writer.writerow(['编号', '元素比例（化学式）', '生长制度', '结果'])
+    if lang == 'en':
+        writer.writerow(['Sample ID', 'Element Ratio (Formula)', 'Growth Process', 'Results'])
+    else:
+        writer.writerow(['编号', '元素比例（化学式）', '生长制度', '结果'])
 
     # 写入数据
     for sample in samples:
@@ -766,26 +770,29 @@ def export_samples():
 
 @app.route('/api/samples/<sample_id>/export_word', methods=['GET'])
 def export_sample_word(sample_id):
-    """导出单个样品为 Word 文档 (中英双语)"""
+    """导出单个样品为 Word 文档 (中文或英文)"""
+    lang = request.args.get('lang', 'zh')
     sample = models.get_sample(sample_id)
     if not sample:
-        return jsonify({'error': '样品不存在'}), 404
+        return jsonify({'error': '样品不存在' if lang == 'zh' else 'Sample not found'}), 404
 
     try:
         from docx import Document
         from docx.shared import Inches, Pt
         from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
     except ImportError:
-        return jsonify({'error': '未安装 python-docx 库，请联系管理员'}), 500
+        return jsonify({'error': '未安装 python-docx 库，请联系管理员' if lang == 'zh' else 'python-docx library not installed, contact admin'}), 500
 
     doc = Document()
     
     # 标题
-    title = doc.add_heading(f'Sample Report / 样品报告: {sample["id"]}', 0)
+    title_text = f'样品报告: {sample["id"]}' if lang == 'zh' else f'Sample Report: {sample["id"]}'
+    title = doc.add_heading(title_text, 0)
     title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
     
     # 基本信息
-    doc.add_heading('1. Basic Information / 基本信息', level=1)
+    h1_text = '1. 基本信息' if lang == 'zh' else '1. Basic Information'
+    doc.add_heading(h1_text, level=1)
     
     table = doc.add_table(rows=0, cols=2)
     table.style = 'Table Grid'
@@ -795,36 +802,39 @@ def export_sample_word(sample_id):
         row_cells[0].text = key
         row_cells[1].text = str(val) if val else ''
         
-    add_row('Sample ID / 样品编号', sample.get('id', ''))
-    add_row('Target Product / 目标产物', sample.get('target_product', ''))
+    add_row('样品编号' if lang == 'zh' else 'Sample ID', sample.get('id', ''))
+    add_row('目标产物' if lang == 'zh' else 'Target Product', sample.get('target_product', ''))
     
-    status_map = {0: 'Fail / 失败', 1: 'Success / 成功'}
+    status_map_zh = {0: '失败', 1: '成功'}
+    status_map_en = {0: 'Fail', 1: 'Success'}
     s_val = sample.get('status', sample.get('is_successful', 2))
     if s_val not in [0, 1]:
-        s_val_str = 'Pending / 待定'
+        s_val_str = '待定' if lang == 'zh' else 'Pending'
     else:
-        s_val_str = status_map.get(s_val, 'Pending / 待定')
-    add_row('Status / 状态', s_val_str)
+        s_val_str = status_map_zh.get(s_val, '待定') if lang == 'zh' else status_map_en.get(s_val, 'Pending')
+    add_row('状态' if lang == 'zh' else 'Status', s_val_str)
     
     measurements = []
-    if sample.get('has_electric'): measurements.append('Electric / 电学')
-    if sample.get('has_magnetic'): measurements.append('Magnetic / 磁性')
+    if sample.get('has_electric'): measurements.append('电学' if lang == 'zh' else 'Electric')
+    if sample.get('has_magnetic'): measurements.append('磁性' if lang == 'zh' else 'Magnetic')
     if sample.get('has_xrd'): measurements.append('XRD')
     if sample.get('has_edx'): measurements.append('EDX')
-    add_row('Measurements / 测量', ', '.join(measurements) if measurements else 'None / 无')
+    none_str = '无' if lang == 'zh' else 'None'
+    add_row('测量' if lang == 'zh' else 'Measurements', ', '.join(measurements) if measurements else none_str)
     
     # 称重表格
     ratios = sample.get('element_ratios', [])
     masses = sample.get('actual_masses', [])
     if ratios:
-        doc.add_heading('2. Element Ratios & Mass / 元素比例 & 质量计算', level=1)
+        h2_text = '2. 元素比例 & 质量计算' if lang == 'zh' else '2. Element Ratios & Mass'
+        doc.add_heading(h2_text, level=1)
         calc_table = doc.add_table(rows=1, cols=4)
         calc_table.style = 'Table Grid'
         hdr = calc_table.rows[0].cells
-        hdr[0].text = 'Symbol / 元素符号'
-        hdr[1].text = 'Ratio / 摩尔比'
-        hdr[2].text = 'Molar Mass / 摩尔质量(g/mol)'
-        hdr[3].text = 'Mass / 实际质量(g)'
+        hdr[0].text = '元素符号' if lang == 'zh' else 'Symbol'
+        hdr[1].text = '摩尔比' if lang == 'zh' else 'Ratio'
+        hdr[2].text = '摩尔质量(g/mol)' if lang == 'zh' else 'Molar Mass (g/mol)'
+        hdr[3].text = '实际质量(g)' if lang == 'zh' else 'Mass (g)'
         
         for i, item in enumerate(ratios):
             row_cells = calc_table.add_row().cells
@@ -838,25 +848,31 @@ def export_sample_word(sample_id):
             row_cells[3].text = mass_val
 
     # 生长流程
-    doc.add_heading('3. Growth Process / 生长流程', level=1)
+    h3_text = '3. 生长流程' if lang == 'zh' else '3. Growth Process'
+    doc.add_heading(h3_text, level=1)
     if sample.get('sintering_start') or sample.get('sintering_end'):
         p = doc.add_paragraph()
-        p.add_run('Time / 时间: ').bold = True
-        p.add_run(f"{sample.get('sintering_start', '—')} to {sample.get('sintering_end', '—')} ")
+        time_label = '时间: ' if lang == 'zh' else 'Time: '
+        p.add_run(time_label).bold = True
+        to_label = ' 到 ' if lang == 'zh' else ' to '
+        p.add_run(f"{sample.get('sintering_start', '—')}{to_label}{sample.get('sintering_end', '—')} ")
         if sample.get('sintering_duration'):
             p.add_run(f"({sample.get('sintering_duration')} h)")
     if sample.get('growth_process'):
         doc.add_paragraph(sample.get('growth_process', ''))
         
     # 结果和备注
-    doc.add_heading('4. Results & Notes / 结果与备注', level=1)
+    h4_text = '4. 结果与备注' if lang == 'zh' else '4. Results & Notes'
+    doc.add_heading(h4_text, level=1)
     if sample.get('results'):
         p = doc.add_paragraph()
-        p.add_run('Results / 结果: ').bold = True
+        results_label = '结果: ' if lang == 'zh' else 'Results: '
+        p.add_run(results_label).bold = True
         doc.add_paragraph(sample.get('results', ''))
     if sample.get('notes'):
         p = doc.add_paragraph()
-        p.add_run('Notes / 备注: ').bold = True
+        notes_label = '备注: ' if lang == 'zh' else 'Notes: '
+        p.add_run(notes_label).bold = True
         doc.add_paragraph(sample.get('notes', ''))
         
     # 图片和图表辅助函数
@@ -873,18 +889,22 @@ def export_sample_word(sample_id):
                         p = doc.add_paragraph(img.get('filename', ''))
                         p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                     except Exception as e:
-                        doc.add_paragraph(f"[Image load failed / 图片加载失败: {str(e)}]")
+                        err_msg = '图片加载失败' if lang == 'zh' else 'Image load failed'
+                        doc.add_paragraph(f"[{err_msg}: {str(e)}]")
                         
     # 照片
-    add_image_section('5. Photos / 样品照片', sample.get('photos', []))
+    photos_title = '5. 样品照片' if lang == 'zh' else '5. Photos'
+    add_image_section(photos_title, sample.get('photos', []))
     
     # XRD
-    add_image_section('6. XRD Analysis / XRD 分析', sample.get('xrd_images', []))
+    xrd_title = '6. XRD 分析' if lang == 'zh' else '6. XRD Analysis'
+    add_image_section(xrd_title, sample.get('xrd_images', []))
     
     # EDX
     edx_images = sample.get('edx_images', [])
     if edx_images:
-        doc.add_heading('7. EDX Analysis / EDX 分析', level=1)
+        edx_title = '7. EDX 分析' if lang == 'zh' else '7. EDX Analysis'
+        doc.add_heading(edx_title, level=1)
         for img in edx_images:
             r_data = img.get('recognized_data')
             has_table = r_data and isinstance(r_data, dict) and 'elements' in r_data
@@ -897,7 +917,8 @@ def export_sample_word(sample_id):
                         try:
                             doc.add_picture(filepath, width=Inches(5.0))
                         except Exception as e:
-                            doc.add_paragraph(f"[Image load failed / 图片加载失败: {str(e)}]")
+                            err_msg = '图片加载失败' if lang == 'zh' else 'Image load failed'
+                            doc.add_paragraph(f"[{err_msg}: {str(e)}]")
             
             # 添加 EDX 表格数据
             if has_table:
@@ -906,26 +927,33 @@ def export_sample_word(sample_id):
                 average = r_data.get('average', {})
                 result_type = r_data.get('result_type', 'atomic_percent')
                 
-                doc.add_paragraph(f"Result Type / 结果类型: {result_type}")
+                res_type_label = '结果类型: ' if lang == 'zh' else 'Result Type: '
+                doc.add_paragraph(f"{res_type_label}{result_type}")
                 
                 if elements and spectra:
                     edx_table = doc.add_table(rows=1, cols=len(elements) + 1)
                     edx_table.style = 'Table Grid'
                     hdr_cells = edx_table.rows[0].cells
-                    hdr_cells[0].text = 'Spectrum / 谱图'
+                    hdr_cells[0].text = '谱图' if lang == 'zh' else 'Spectrum'
                     for i, el in enumerate(elements):
                         hdr_cells[i+1].text = str(el)
                         
                     for sp in spectra:
                         row_cells = edx_table.add_row().cells
-                        row_cells[0].text = str(sp.get('label', ''))
+                        label = str(sp.get('label', ''))
+                        if lang == 'zh' and label.lower().startswith('spectrum '):
+                            label = label.replace('Spectrum ', '谱图 ')
+                        row_cells[0].text = label
                         vals = sp.get('values', [])
                         for i in range(len(elements)):
                             row_cells[i+1].text = str(vals[i]) if i < len(vals) else ''
                             
                     if average:
                         row_cells = edx_table.add_row().cells
-                        row_cells[0].text = str(average.get('label', 'Average'))
+                        avg_label = '平均' if lang == 'zh' else 'Average'
+                        row_cells[0].text = str(average.get('label', avg_label))
+                        if lang == 'zh' and row_cells[0].text.lower() == 'average':
+                            row_cells[0].text = '平均'
                         vals = average.get('values', [])
                         for i in range(len(elements)):
                             row_cells[i+1].text = str(vals[i]) if i < len(vals) else ''
