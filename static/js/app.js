@@ -1285,10 +1285,10 @@ function renderXrd(xrdImages) {
         const isImage = ['jpg', 'jpeg', 'png', 'bmp', 'tif', 'tiff'].includes(ext);
 
         if (isImage) {
-            const thumbSrc = src + '?thumb=1';
+            // XRD images should not use thumbnails to preserve clarity, use original src
             return `
-                <div class="photo-item" onclick="openModal('${escapeJs(src)}')">
-                    <img src="${thumbSrc}" alt="${escapeHtml(filename)}" loading="lazy">
+                <div class="photo-item xrd-item" onclick="openModal('${escapeJs(src)}')">
+                    <img src="${src}" alt="${escapeHtml(filename)}" loading="lazy">
                     <button class="photo-delete" onclick="event.stopPropagation(); deleteAttachment('xrd', ${p.id})" title="删除">×</button>
                 </div>
             `;
