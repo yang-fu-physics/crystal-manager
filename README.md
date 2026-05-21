@@ -10,10 +10,10 @@ A local web application designed to manage all information regarding samples obt
 - **Basic Info** — Sample ID, Target Product, Status (Success/Fail/Pending/Growing/Completed), Unique Measurements (Electric/Magnetic), Growth Process & Sintering Time Tracking, Results, Notes.
 - **Enhanced Navigation & UX** — One-click fast previous/next navigation, auto-resizing textareas, intelligent anti-scroll during saves, and smart duplication that preserves custom reference elements.
 - **Mass Calculation** — Intuitive display of current context (ID/Product); input element molar ratios + mass of one reference element to automatically calculate the required mass for other elements.
-- **Export** — Export all samples as CSV or export individual sample reports (bilingual) directly to Microsoft Word (`.docx`).
-- **Photos & XRD** — Multiple photo/XRD image uploads (supports camera capture), automatic lazy-loaded thumbnails, zoom preview, and perfectly restored original filenames upon download. XRD/EDX statuses are automatically adjusted based on uploads.
+- **Export** — Export all samples as CSV or export individual sample reports (bilingual) directly to Microsoft Word (`.docx`). Intelligent filename generation based on ID, target product, and status.
+- **Photos & XRD** — Multiple photo/XRD image uploads (supports camera capture), automatic lazy-loaded thumbnails, zoom preview, and perfectly restored original filenames upon download. XRD/EDX statuses are automatically adjusted based on uploads. Non-image data files in XRD and other sections support direct inline opening (PDF) or downloading. Word export perfectly formats image spacing and omits filenames for physical photos to maintain report cleanliness.
 - **EDX Analysis** — Upload EDX spectrum images (auto-generates thumbnails) → uses GPT Vision API to automatically recognize INCA-style elemental composition, with manual reordering support for EDX data cards.
-- **Data & Other Files** — Upload/download `.dat/.csv/.txt` and any other ad-hoc attachment files with reliable strict original filename retention.
+- **Data & Other Files** — Upload/download `.dat/.csv/.txt/.pdf` and any other ad-hoc attachment files with reliable strict original filename retention.
 - **Microsoft To Do Integration** — Bind your Microsoft account to automatically sync sintering end times directly to To Do for robust cross-device reminders.
 - **Global Timezone Configuration** — Independent timezone setting decoupled from server location to ensure consistent time synchronization between frontend and database.
 - **Bilingual & Responsive UI** — Seamless dynamic i18n switching (EN/ZH); deep layout and touch optimizations for mobile and tablet, plus a widescreen fullscreen mode.
