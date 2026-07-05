@@ -26,7 +26,7 @@
 | 后端 | Python / Flask / Pillow (缩略图处理) |
 | 数据库 | SQLite |
 | 前端 | HTML / CSS / JavaScript |
-| AI 识别 | OpenAI 兼容 API (GPT-4o / Gemini) |
+| AI 识别 | OpenAI 兼容 API (GPT-4o / Gemini-3.1pro) |
 
 ## 快速开始
 
