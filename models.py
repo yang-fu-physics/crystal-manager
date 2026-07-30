@@ -269,7 +269,7 @@ def create_sample(data):
                element_ratios, actual_masses, notes, results,
                sintering_start, sintering_duration, sintering_end,
                created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 data['id'],
                 data.get('target_product', ''),
