@@ -24,11 +24,13 @@ const translations = {
             exportWordBtn: "导出 Word", exportWordTitle: "导出为 Word 文档",
             sections: { basicInfo: "基本信息", growthProcess: "生长流程", results: "结果", notes: "额外备注", calculator: "元素比例 & 质量计算", photos: "实物照片", xrd: "XRD 衍射分析", edx: "EDX 能谱分析", dataFiles: "数据文件 (.dat)", otherFiles: "其他文件" },
             fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态", measurements: "测量",
+            documents: "文件",
                        sinteringStart: "开始烧制时间", sinteringDuration: "烧制耗时 (小时)", sinteringEnd: "结束时间",
                        sinteringNowBtn: "当前时间", sinteringNowTitle: "设为当前时间" },
             placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcess: "描述晶体的生长方法、温度曲线、时间等参数...", results: "实验结果描述...", notes: "其他需要记录的信息..." },
             status: { success: "成功", fail: "失败", pending: "待定", growing: "生长中", done: "生长完成" },
             measurements: { electric: "电学测量", magnetic: "磁性测量", xrd: "XRD", edx: "EDX" },
+            documents: { pdf: "PDF" },
             badges: { electric: "电", magnetic: "磁", xrd: "XRD", edx: "EDX" },
             calc: { symbol: "元素符号", ratio: "摩尔比", molarMass: "摩尔质量 (g/mol)", mass: "实际质量 (g)", reference: "参考", addElement: "添加元素", calcMass: "计算质量" },
             upload: { dragPhoto: "拖拽照片到此处，或", dragXrd: "拖拽 XRD 数据或谱图到此处，或", dragEdx: "拖拽 EDX 谱图到此处，或", dragData: "拖拽 .dat/.csv/.txt 文件到此处，或", dragOther: "拖拽任何其他文件到此处，或", clickUpload: "点击上传", takePhoto: "拍照上传" }
@@ -63,11 +65,13 @@ const translations = {
             exportWordBtn: "Export Word", exportWordTitle: "Export to Word",
             sections: { basicInfo: "Basic Info", growthProcess: "Growth Process", results: "Results", notes: "Notes", calculator: "Element Ratios & Mass", photos: "Photos", xrd: "XRD Analysis", edx: "EDX Analysis", dataFiles: "Data Files (.dat)", otherFiles: "Other Files" },
             fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status", measurements: "Measurements",
+            documents: "Files",
                        sinteringStart: "Sintering Start", sinteringDuration: "Duration (hours)", sinteringEnd: "End Time",
                        sinteringNowBtn: "Now", sinteringNowTitle: "Set to current time" },
             placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcess: "Describe growth method, temp profile, time, etc...", results: "Experiment results...", notes: "Any other notes..." },
             status: { success: "Success", fail: "Fail", pending: "Pending", growing: "Growing", done: "Done" },
             measurements: { electric: "Electric", magnetic: "Magnetic", xrd: "XRD", edx: "EDX" },
+            documents: { pdf: "PDF" },
             badges: { electric: "Elec", magnetic: "Mag", xrd: "XRD", edx: "EDX" },
             calc: { symbol: "Symbol", ratio: "Mol Ratio", molarMass: "Molar Mass (g/mol)", mass: "Actual Mass (g)", reference: "Ref", addElement: "Add Element", calcMass: "Calculate Mass" },
             upload: { dragPhoto: "Drag photos here, or ", dragXrd: "Drag XRD data or spectra here, or ", dragEdx: "Drag EDX spectra here, or ", dragData: "Drag .dat/.csv/.txt files here, or ", dragOther: "Drag any other files here, or ", clickUpload: "Click to Select", takePhoto: "Take Photo" }
@@ -188,6 +192,7 @@ const toggleElectric = document.getElementById('toggleElectric');
 const toggleMagnetic = document.getElementById('toggleMagnetic');
 const toggleXRD = document.getElementById('toggleXRD');
 const toggleEDX = document.getElementById('toggleEDX');
+const togglePDF = document.getElementById('togglePDF');
 const toggleGrowing = document.getElementById('toggleGrowing');
 const toggleDone = document.getElementById('toggleDone');
 
@@ -412,6 +417,12 @@ function bindEvents() {
             toggleEDX.classList.toggle('active');
         });
     }
+    if (togglePDF) {
+        togglePDF.addEventListener('click', (e) => {
+            e.preventDefault();
+            togglePDF.classList.toggle('active');
+        });
+    }
 
     // Sintering time
     btnNow.addEventListener('click', () => {
@@ -556,14 +567,21 @@ async function loadSampleList(query = '') {
             <li class="sample-item ${s.id === currentSampleId ? 'active' : ''}" 
                 data-id="${escapeHtml(s.id)}"
                 ${canDrag ? 'draggable="true"' : ''}>
-                <div class="sample-item-id">
-                    ${canDrag ? '<span class="drag-handle" title="\u62d6\u62fd\u6392\u5e8f">\u2630</span>' : ''}
-                    <span class="status-dot ${s.is_successful === 1 ? 'success' : (s.is_successful === 0 ? 'fail' : (s.is_successful === 3 ? 'growing' : (s.is_successful === 4 ? 'done' : 'pending')))}"></span>
-                    ${escapeHtml(s.id)}
-                    ${s.has_electric ? '<span class="badge badge-elect" data-i18n="form.badges.electric">' + t('form.badges.electric') + '</span>' : ''}
-                    ${s.has_magnetic ? '<span class="badge badge-magn" data-i18n="form.badges.magnetic">' + t('form.badges.magnetic') + '</span>' : ''}
-                    ${s.has_xrd ? '<span class="badge badge-xrd" data-i18n="form.badges.xrd">' + t('form.badges.xrd') + '</span>' : ''}
-                    ${s.has_edx ? '<span class="badge badge-edx" data-i18n="form.badges.edx">' + t('form.badges.edx') + '</span>' : ''}
+                <div class="sample-item-id" style="align-items: flex-start;">
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px;">
+                        ${canDrag ? '<span class="drag-handle" title="\u62d6\u62fd\u6392\u5e8f">\u2630</span>' : ''}
+                        <span class="status-dot ${s.is_successful === 1 ? 'success' : (s.is_successful === 0 ? 'fail' : (s.is_successful === 3 ? 'growing' : (s.is_successful === 4 ? 'done' : 'pending')))}"></span>
+                        <span>${escapeHtml(s.id)}</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                            ${s.has_electric ? '<span class="badge badge-elect" data-i18n="form.badges.electric">' + t('form.badges.electric') + '</span>' : ''}
+                            ${s.has_magnetic ? '<span class="badge badge-magn" data-i18n="form.badges.magnetic">' + t('form.badges.magnetic') + '</span>' : ''}
+                            ${s.has_xrd ? '<span class="badge badge-xrd" data-i18n="form.badges.xrd">' + t('form.badges.xrd') + '</span>' : ''}
+                            ${s.has_edx ? '<span class="badge badge-edx" data-i18n="form.badges.edx">' + t('form.badges.edx') + '</span>' : ''}
+                        </div>
+                        ${s.has_pdf ? '<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;"><span class="badge badge-pdf" data-i18n="form.documents.pdf" style="background:var(--danger);color:white;">' + (t('form.documents.pdf') || 'PDF') + '</span></div>' : ''}
+                    </div>
                 </div>
                 <div class="sample-item-product">${escapeHtml(s.target_product || '\u2014')}</div>
                 <div class="sample-item-date">${formatDate(s.sintering_start || s.created_at)}</div>
@@ -730,6 +748,10 @@ function fillForm(sample) {
         if (sample.has_edx || (sample.edx_images && sample.edx_images.length > 0)) toggleEDX.classList.add('active');
         else toggleEDX.classList.remove('active');
     }
+    if (togglePDF) {
+        if (sample.has_pdf) togglePDF.classList.add('active');
+        else togglePDF.classList.remove('active');
+    }
 
     // Sintering time
     sinteringStartInput.value = isoToDatetimeLocal(sample.sintering_start || '');
@@ -812,6 +834,7 @@ async function saveSample() {
     const hasMagnetic = toggleMagnetic.classList.contains('active') ? 1 : 0;
     const hasXrd = (toggleXRD && toggleXRD.classList.contains('active')) ? 1 : 0;
     const hasEdx = (toggleEDX && toggleEDX.classList.contains('active')) ? 1 : 0;
+    const hasPdf = (togglePDF && togglePDF.classList.contains('active')) ? 1 : 0;
 
     // 收集元素数据
     const elementRows = elementTableBody.querySelectorAll('tr');
@@ -844,6 +867,7 @@ async function saveSample() {
         has_magnetic: hasMagnetic,
         has_xrd: hasXrd,
         has_edx: hasEdx,
+        has_pdf: hasPdf,
         growth_process: growthProcessInput.value.trim(),
         results: resultsFieldInput.value.trim(),
         notes: notesFieldInput.value.trim(),
@@ -992,6 +1016,7 @@ function copySample() {
     toggleMagnetic.classList.remove('active');
     if (toggleXRD) toggleXRD.classList.remove('active');
     if (toggleEDX) toggleEDX.classList.remove('active');
+    if (togglePDF) togglePDF.classList.remove('active');
 
     // Clear sintering time for copy
     sinteringStartInput.value = '';
@@ -1236,6 +1261,13 @@ async function uploadFiles(files, type) {
             toggleEDX.classList.add('active');
             await saveSample();
             autoSaved = true;
+        } else if (type === 'otherfiles') {
+            const hasPdfUploaded = Array.from(files).some(f => f.name.toLowerCase().endsWith('.pdf'));
+            if (hasPdfUploaded && togglePDF && !togglePDF.classList.contains('active')) {
+                togglePDF.classList.add('active');
+                await saveSample();
+                autoSaved = true;
+            }
         }
 
         if (!autoSaved) {
