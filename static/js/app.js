@@ -529,10 +529,12 @@ function bindTextareaResize() {
 
 
 function updateCalcDisplays() {
-    const sId = document.getElementById('calcSampleIdDisplay');
-    const tp = document.getElementById('calcTargetProductDisplay');
-    if (sId) sId.textContent = sampleIdInput.value || '-';
-    if (tp) tp.textContent = targetProductInput.value || '-';
+    const sIds = document.querySelectorAll('.section-sample-id-display');
+    const tps = document.querySelectorAll('.section-target-product-display');
+    const sIdText = sampleIdInput.value || '-';
+    const tpText = targetProductInput.value || '-';
+    sIds.forEach(el => el.textContent = sIdText);
+    tps.forEach(el => el.textContent = tpText);
 }
 
 // ============================================================
