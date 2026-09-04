@@ -5,6 +5,7 @@ from csv import reader
 import pytest
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.util import Inches
 
 import models
 
@@ -69,6 +70,11 @@ def test_pptx_zh_export_has_one_slide_per_sample_and_requested_vertical_regions(
     assert _shape_with_text(slide, "结果").top < _shape_with_text(slide, "生长方法").top
     assert _shape_with_text(slide, "中文结果文字")
     assert _shape_with_text(slide, "元素比例：Bi2NiTe\n中文生长方法")
+    growth_box = next(
+        shape for shape in slide.shapes
+        if not shape.text and shape.top == Inches(4.4)
+    )
+    assert growth_box.height == Inches(1.25)
     assert "English result text" not in "\n".join(shape.text for shape in _text_shapes(slide))
     assert "English growth method" not in "\n".join(shape.text for shape in _text_shapes(slide))
     assert all(name == "Microsoft YaHei" for shape in _text_shapes(slide) for name in _shape_font_names(shape))

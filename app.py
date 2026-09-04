@@ -978,7 +978,7 @@ def export_samples_pptx():
             title_color = RGBColor(0, 0, 0)
 
         status_label = _format_export_status(status_value, lang)
-        title = f"{sample.get('id', '')}-{sample.get('target_product', '')}-{status_label}"
+        title = f"{sample.get('id') or ''}-{sample.get('target_product') or ''}-{status_label}"
         result_key = 'results_en' if lang == 'en' else 'results'
         result_text = sample.get(result_key, '') or ''
         growth_method = _format_export_growth_method(sample, lang)
@@ -987,7 +987,7 @@ def export_samples_pptx():
         add_textbox(slide, 0.7, 0.35, 11.9, 0.62, title, 25, title_color, True)
         add_text_region(slide, 1.25, result_title, result_text, 1.95)
         # Reserve a stable three-line area for the growth method.
-        add_text_region(slide, 4.0, growth_title, growth_method, 2.35)
+        add_text_region(slide, 4.0, growth_title, growth_method, 1.25)
 
     output = BytesIO()
     presentation.save(output)
