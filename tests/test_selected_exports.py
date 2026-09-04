@@ -66,7 +66,8 @@ def test_post_pptx_exports_only_selected_samples_in_requested_order(client):
 
     assert response.status_code == 200
     presentation = Presentation(BytesIO(response.data))
-    assert [slide.shapes[0].text for slide in presentation.slides] == [
+    assert len(presentation.slides) == 3
+    assert [slide.shapes[0].text for slide in list(presentation.slides)[1:]] == [
         "sample-B-Target-sample-B-Success",
         "sample-A-Target-sample-A-Success",
     ]
@@ -115,7 +116,7 @@ def test_get_exports_remain_all_samples_for_backward_compatibility(client):
     assert csv_response.status_code == 200
     assert len(_csv_rows(csv_response)) == 4
     assert pptx_response.status_code == 200
-    assert len(Presentation(BytesIO(pptx_response.data)).slides) == 3
+    assert len(Presentation(BytesIO(pptx_response.data)).slides) == 4
 
 
 def test_duplicate_selected_ids_are_deduplicated_in_first_seen_order(client):

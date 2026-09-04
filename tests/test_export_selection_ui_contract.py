@@ -75,6 +75,17 @@ def test_empty_selection_does_not_send_export_request_and_dialog_can_close():
     assert "key === 'Escape'" in JS or 'event.key === \'Escape\'' in JS
 
 
+def test_selection_requests_cannot_close_or_overwrite_a_new_dialog():
+    assert "let exportSelectionBusy = false;" in JS
+    assert "let exportSelectionRequestId = 0;" in JS
+    assert "if (exportSelectionBusy && !force) return;" in JS
+    assert "exportSelectionBusy) return;" in JS
+    assert "const requestId = ++exportSelectionRequestId;" in JS
+    assert "if (requestId !== exportSelectionRequestId) return;" in JS
+    assert "exportSelectionBusy = true;" in JS
+    assert "exportSelectionBusy = false;" in JS
+
+
 def test_selection_css_is_responsive_and_does_not_reuse_image_modal():
     assert ".export-selection-overlay" in CSS
     assert ".export-selection-list" in CSS

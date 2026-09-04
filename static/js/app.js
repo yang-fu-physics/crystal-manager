@@ -112,6 +112,8 @@ const translations = {
 let currentLang = localStorage.getItem('crystal_lang') || 'zh'; // 默认中文
 let pendingExportFormat = null;
 let exportSelectionSamples = [];
+let exportSelectionBusy = false;
+let exportSelectionRequestId = 0;
 
 function t(path, ...args) {
     let result = path.split('.').reduce((obj, key) => (obj && obj[key] !== undefined) ? obj[key] : null, translations[currentLang]);
@@ -2054,14 +2056,17 @@ function setExportSelectionChecked(checked) {
     updateExportSelectionCount();
 }
 
-function closeExportSelection() {
+function closeExportSelection(force = false) {
+    if (exportSelectionBusy && !force) return;
+    exportSelectionRequestId += 1;
     if (exportSelectionModal) exportSelectionModal.hidden = true;
     pendingExportFormat = null;
     exportSelectionSamples = [];
 }
 
 async function openExportSelection(format) {
-    if (!exportSelectionModal || !exportSelectionList) return;
+    if (!exportSelectionModal || !exportSelectionList || exportSelectionBusy) return;
+    const requestId = ++exportSelectionRequestId;
     pendingExportFormat = format === 'pptx' ? 'pptx' : 'csv';
     exportSelectionModal.hidden = false;
     exportSelectionList.textContent = t('messages.exportSelectionLoading');
@@ -2072,13 +2077,17 @@ async function openExportSelection(format) {
         if (!response.ok) throw new Error('sample list request failed');
         const samples = await response.json();
         if (!Array.isArray(samples)) throw new Error('invalid sample list');
+        if (requestId !== exportSelectionRequestId) return;
         exportSelectionSamples = samples;
         renderExportSelectionSamples(samples);
     } catch (e) {
+        if (requestId !== exportSelectionRequestId) return;
         closeExportSelection();
         showToast(t('messages.exportSelectionLoadFailed'), 'error');
     } finally {
-        if (exportSelectionConfirmBtn) exportSelectionConfirmBtn.disabled = false;
+        if (requestId === exportSelectionRequestId && exportSelectionConfirmBtn) {
+            exportSelectionConfirmBtn.disabled = false;
+        }
     }
 }
 
@@ -2115,13 +2124,15 @@ async function confirmExportSelection() {
     }
 
     if (exportSelectionConfirmBtn) exportSelectionConfirmBtn.disabled = true;
+    exportSelectionBusy = true;
     try {
         await downloadSelectedExport(pendingExportFormat, sampleIds);
-        closeExportSelection();
+        closeExportSelection(true);
         showToast(t('messages.exportSuccess'), 'success');
     } catch (e) {
         showToast(t('messages.exportFailed'), 'error');
     } finally {
+        exportSelectionBusy = false;
         if (exportSelectionConfirmBtn) exportSelectionConfirmBtn.disabled = false;
     }
 }

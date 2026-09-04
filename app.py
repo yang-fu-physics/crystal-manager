@@ -992,6 +992,67 @@ def export_samples_pptx():
         )
         return text_box
 
+    def set_cell_text(cell, text, size, color, bold=False):
+        text_frame = cell.text_frame
+        text_frame.clear()
+        text_frame.word_wrap = True
+        text_frame.margin_left = Inches(0.06)
+        text_frame.margin_right = Inches(0.06)
+        text_frame.margin_top = Inches(0.01)
+        text_frame.margin_bottom = Inches(0.01)
+        text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        paragraph = text_frame.paragraphs[0]
+        paragraph.alignment = PP_ALIGN.LEFT
+        run = paragraph.add_run()
+        run.text = text
+        set_run_font(run, size, color, bold)
+
+    # 首页总览表格：每个样品仍从第二页开始。
+    overview_slide = presentation.slides.add_slide(blank_layout)
+    overview_title = 'Sample Overview' if lang == 'en' else '样品总览'
+    add_textbox(overview_slide, 0.7, 0.35, 11.9, 0.62, overview_title, 25, RGBColor(31, 41, 55), True)
+    overview_rows = len(samples) + 1
+    table_shape = overview_slide.shapes.add_table(
+        overview_rows, 3, Inches(0.7), Inches(1.15), Inches(11.9), Inches(6.05)
+    )
+    overview_table = table_shape.table
+    for column, width in zip(overview_table.columns, (3.7, 4.2, 4.0)):
+        column.width = Inches(width)
+
+    header_labels = (
+        ['Sample ID', 'Target Sample', 'Status']
+        if lang == 'en'
+        else ['编号', '目标样品', '是否成功']
+    )
+    header_height = Inches(0.28)
+    overview_table.rows[0].height = header_height
+    header_fill = RGBColor(79, 70, 229)
+    header_text = RGBColor(255, 255, 255)
+    for cell, label in zip(overview_table.rows[0].cells, header_labels):
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = header_fill
+        set_cell_text(cell, label, 11, header_text, True)
+
+    body_height = 0.0 if not samples else min(0.28, max(0.08, (6.05 - 0.28) / len(samples)))
+    body_size = 8 if len(samples) > 35 else 10
+    for index, sample in enumerate(samples, start=1):
+        overview_table.rows[index].height = Inches(body_height)
+        status_value = sample.get('is_successful', 2)
+        try:
+            status_value = int(status_value)
+        except (TypeError, ValueError):
+            status_value = 2
+        if status_value == 1:
+            status_color = RGBColor(22, 163, 74)
+        elif status_value == 0:
+            status_color = RGBColor(220, 38, 38)
+        else:
+            status_color = RGBColor(0, 0, 0)
+        cells = overview_table.rows[index].cells
+        set_cell_text(cells[0], sample.get('id') or '', body_size, RGBColor(31, 41, 55))
+        set_cell_text(cells[1], sample.get('target_product') or '', body_size, RGBColor(31, 41, 55))
+        set_cell_text(cells[2], _format_export_status(status_value, lang), body_size, status_color, True)
+
     for sample in samples:
         slide = presentation.slides.add_slide(blank_layout)
         status_value = sample.get('is_successful', 2)

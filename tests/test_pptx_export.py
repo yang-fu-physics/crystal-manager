@@ -41,6 +41,38 @@ def _title_color(slide):
     return title.text_frame.paragraphs[0].runs[0].font.color.rgb
 
 
+def _cell_color(cell):
+    return cell.text_frame.paragraphs[0].runs[0].font.color.rgb
+
+
+def test_pptx_export_starts_with_overview_table_and_status_colors(client):
+    models.create_sample({"id": "ppt-success", "target_product": "Target-S", "status": 1})
+    models.create_sample({"id": "ppt-fail", "target_product": "Target-F", "status": 0})
+    models.create_sample({"id": "ppt-pending", "target_product": "Target-P", "status": 2})
+
+    presentation = _presentation(client.get("/api/samples/export_pptx?lang=zh"))
+
+    assert len(presentation.slides) == 4
+    cover = presentation.slides[0]
+    assert cover.shapes[0].text == "样品总览"
+    table_shape = next(shape for shape in cover.shapes if shape.has_table)
+    table = table_shape.table
+    assert len(table.columns) == 3
+    assert [cell.text for cell in table.rows[0].cells] == ["编号", "目标样品", "是否成功"]
+
+    rows = {
+        table.rows[index].cells[0].text: table.rows[index]
+        for index in range(1, len(table.rows))
+    }
+    assert rows["ppt-success"].cells[1].text == "Target-S"
+    assert rows["ppt-success"].cells[2].text == "成功"
+    assert rows["ppt-fail"].cells[2].text == "失败"
+    assert rows["ppt-pending"].cells[2].text == "待定"
+    assert _cell_color(rows["ppt-success"].cells[2]) == RGBColor(22, 163, 74)
+    assert _cell_color(rows["ppt-fail"].cells[2]) == RGBColor(220, 38, 38)
+    assert _cell_color(rows["ppt-pending"].cells[2]) == RGBColor(0, 0, 0)
+
+
 def test_pptx_zh_export_has_one_slide_per_sample_and_requested_vertical_regions(client):
     models.create_sample(
         {
@@ -64,8 +96,8 @@ def test_pptx_zh_export_has_one_slide_per_sample_and_requested_vertical_regions(
     assert response.status_code == 200
     assert response.mimetype == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     presentation = _presentation(response)
-    assert len(presentation.slides) == 1
-    slide = presentation.slides[0]
+    assert len(presentation.slides) == 2
+    slide = presentation.slides[1]
     assert slide.shapes[0].text == "ppt-zh-BiNiTe-成功"
     assert _shape_with_text(slide, "结果").top < _shape_with_text(slide, "生长方法").top
     assert _shape_with_text(slide, "中文结果文字")
@@ -99,7 +131,7 @@ def test_pptx_en_export_uses_english_fields_times_new_roman_and_failure_color(cl
 
     assert response.status_code == 200
     presentation = _presentation(response)
-    slide = presentation.slides[0]
+    slide = presentation.slides[1]
     assert slide.shapes[0].text == "ppt-en-BiNiTe-Fail"
     assert _shape_with_text(slide, "Results")
     assert _shape_with_text(slide, "Growth Method")
@@ -124,8 +156,8 @@ def test_pptx_other_status_titles_are_black(client, status, expected_zh, expecte
     sample_id = f"ppt-status-{status}"
     models.create_sample({"id": sample_id, "target_product": "Target", "status": status})
 
-    zh_slide = _presentation(client.get("/api/samples/export_pptx?lang=zh")).slides[0]
-    en_slide = _presentation(client.get("/api/samples/export_pptx?lang=en")).slides[0]
+    zh_slide = _presentation(client.get("/api/samples/export_pptx?lang=zh")).slides[1]
+    en_slide = _presentation(client.get("/api/samples/export_pptx?lang=en")).slides[1]
 
     assert zh_slide.shapes[0].text == f"{sample_id}-Target-{expected_zh}"
     assert en_slide.shapes[0].text == f"{sample_id}-Target-{expected_en}"
@@ -146,7 +178,7 @@ def test_pptx_export_keeps_missing_target_language_text_empty_without_fallback(c
         }
     )
 
-    slide = _presentation(client.get("/api/samples/export_pptx?lang=en")).slides[0]
+    slide = _presentation(client.get("/api/samples/export_pptx?lang=en")).slides[1]
     all_text = "\n".join(shape.text for shape in _text_shapes(slide))
     assert "仅中文生长方法" not in all_text
     assert "仅中文结果" not in all_text
