@@ -359,6 +359,9 @@ function bindEvents() {
     cancelBtn.addEventListener('click', () => cancelEdit());
     deleteBtn.addEventListener('click', () => deleteSample());
     copyBtn.addEventListener('click', () => copySample());
+    if (translateResultsBtn) {
+        translateResultsBtn.addEventListener('click', () => translateResults());
+    }
     if (exportWordBtn) {
         exportWordBtn.addEventListener('click', () => {
             if (!currentSampleId) return;
@@ -502,6 +505,60 @@ function bindEvents() {
     }
     if (sidebarOverlay) {
         sidebarOverlay.addEventListener('click', closeSidebar);
+    }
+}
+
+function updateTranslateResultsButton() {
+    if (!translateResultsBtn) return;
+    const label = translateResultsBtn.querySelector('[data-i18n="form.translateResultsBtn"]');
+    if (label) label.textContent = t('form.translateResultsBtn');
+    translateResultsBtn.title = t('form.translateResultsTitle');
+}
+
+async function translateResults() {
+    if (!translateResultsBtn || !resultsZhFieldInput || !resultsEnFieldInput) return;
+
+    const showChinese = currentLang === 'zh';
+    const sourceLang = showChinese ? 'en' : 'zh';
+    const targetLang = showChinese ? 'zh' : 'en';
+    const sourceField = showChinese ? resultsEnFieldInput : resultsZhFieldInput;
+    const targetField = showChinese ? resultsZhFieldInput : resultsEnFieldInput;
+    const sourceText = sourceField.value.trim();
+
+    if (!sourceText) {
+        showToast(t('messages.translateSourceEmpty'), 'warning');
+        return;
+    }
+
+    translateResultsBtn.disabled = true;
+    translateResultsBtn.setAttribute('aria-busy', 'true');
+
+    try {
+        const resp = await fetch('/api/results/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: sourceText,
+                source_lang: sourceLang,
+                target_lang: targetLang
+            })
+        });
+
+        if (!resp.ok) throw new Error('translation request failed');
+
+        const data = await resp.json();
+        const translation = typeof data.translation === 'string' ? data.translation.trim() : '';
+        if (!translation) throw new Error('empty translation');
+
+        targetField.value = translation;
+        autoResizeTextarea(targetField);
+        showToast(t('messages.translationCompleteUnsaved'), 'success');
+    } catch (e) {
+        showToast(t('messages.translationFailed'), 'error');
+    } finally {
+        translateResultsBtn.disabled = false;
+        translateResultsBtn.removeAttribute('aria-busy');
+        updateTranslateResultsButton();
     }
 }
 
