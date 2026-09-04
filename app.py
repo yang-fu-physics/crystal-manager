@@ -845,7 +845,7 @@ def export_samples():
             sample.get('id', ''),
             element_formula,
             sample.get('growth_process', ''),
-            sample.get('results', '')
+            sample.get('results_en', '') if lang == 'en' else sample.get('results', '')
         ])
 
     # 生成响应
@@ -866,6 +866,9 @@ def export_sample_word(sample_id):
     sample = models.get_sample(sample_id)
     if not sample:
         return jsonify({'error': '样品不存在' if lang == 'zh' else 'Sample not found'}), 404
+
+    result_key = 'results_en' if lang == 'en' else 'results'
+    result_text = sample.get(result_key, '')
 
     try:
         from docx import Document
@@ -955,11 +958,11 @@ def export_sample_word(sample_id):
     # 结果和备注
     h4_text = '4. 结果与备注' if lang == 'zh' else '4. Results & Notes'
     doc.add_heading(h4_text, level=1)
-    if sample.get('results'):
+    if result_text:
         p = doc.add_paragraph()
         results_label = '结果: ' if lang == 'zh' else 'Results: '
         p.add_run(results_label).bold = True
-        doc.add_paragraph(sample.get('results', ''))
+        doc.add_paragraph(result_text)
     if sample.get('notes'):
         p = doc.add_paragraph()
         notes_label = '备注: ' if lang == 'zh' else 'Notes: '
