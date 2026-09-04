@@ -635,10 +635,19 @@ body {
     gap: 8px;
 }
 
+.results-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
 .results-toolbar {
     display: flex;
-    justify-content: flex-end;
-    margin-bottom: 8px;
+    align-items: center;
+    margin-bottom: 0;
     min-width: 0;
 }
 
@@ -1708,6 +1717,10 @@ input[type="datetime-local"]:focus {
 
     .form-section {
         padding: 12px 10px;
+    }
+
+    .results-header-actions {
+        width: 100%;
     }
 
     .results-toolbar {
