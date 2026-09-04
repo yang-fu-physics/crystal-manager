@@ -216,7 +216,14 @@
                             <span class="calc-info-badge section-target-product-display">-</span>
                         </div>
                     </div>
-                    <textarea id="resultsField" rows="3" placeholder="实验结果描述..." data-i18n-placeholder="form.placeholders.results"></textarea>
+                    <div class="results-toolbar">
+                        <button type="button" class="btn-outline btn-sm" id="translateResultsBtn"
+                                data-i18n-title="form.translateResultsTitle">
+                            <span data-i18n="form.translateResultsBtn">en to cn</span>
+                        </button>
+                    </div>
+                    <textarea id="resultsZhField" rows="3" data-i18n-placeholder="form.placeholders.resultsZh"></textarea>
+                    <textarea id="resultsEnField" rows="3" hidden data-i18n-placeholder="form.placeholders.resultsEn"></textarea>
                 </section>
 
 
