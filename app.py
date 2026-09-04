@@ -269,6 +269,10 @@ def update_sample(sample_id):
     if not existing:
         return jsonify({'error': '样品不存在'}), 404
 
+    # Preserve English results for clients that predate the bilingual field.
+    if 'results_en' not in data:
+        data['results_en'] = existing.get('results_en', '')
+
     # 如果修改了 ID，检查新 ID 是否已存在
     new_id = data.get('id', sample_id)
     if new_id != sample_id:
