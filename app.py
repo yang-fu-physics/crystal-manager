@@ -273,6 +273,10 @@ def update_sample(sample_id):
     if 'results_en' not in data:
         data['results_en'] = existing.get('results_en', '')
 
+    # Preserve English growth process for clients that predate the bilingual field.
+    if 'growth_process_en' not in data:
+        data['growth_process_en'] = existing.get('growth_process_en', '')
+
     # 如果修改了 ID，检查新 ID 是否已存在
     new_id = data.get('id', sample_id)
     if new_id != sample_id:
@@ -844,7 +848,7 @@ def export_samples():
         writer.writerow([
             sample.get('id', ''),
             element_formula,
-            sample.get('growth_process', ''),
+            sample.get('growth_process_en', '') if lang == 'en' else sample.get('growth_process', ''),
             sample.get('results_en', '') if lang == 'en' else sample.get('results', '')
         ])
 
@@ -952,8 +956,9 @@ def export_sample_word(sample_id):
         p.add_run(f"{sample.get('sintering_start', '—')}{to_label}{sample.get('sintering_end', '—')} ")
         if sample.get('sintering_duration'):
             p.add_run(f"({sample.get('sintering_duration')} h)")
-    if sample.get('growth_process'):
-        doc.add_paragraph(sample.get('growth_process', ''))
+    growth_process = sample.get('growth_process_en', '') if lang == 'en' else sample.get('growth_process', '')
+    if growth_process:
+        doc.add_paragraph(growth_process)
         
     # 结果和备注
     h4_text = '4. 结果与备注' if lang == 'zh' else '4. Results & Notes'

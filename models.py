@@ -33,6 +33,7 @@ def init_db():
             has_edx INTEGER DEFAULT 0,
 has_pdf INTEGER DEFAULT 0,
             growth_process TEXT DEFAULT '',
+            growth_process_en TEXT DEFAULT '',
             element_ratios TEXT DEFAULT '[]',
             actual_masses TEXT DEFAULT '[]',
             notes TEXT DEFAULT '',
@@ -100,6 +101,12 @@ has_pdf INTEGER DEFAULT 0,
                 FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
             )
         """)
+
+    # Dynamic migration for bilingual growth process
+    try:
+        cursor.execute("SELECT growth_process_en FROM samples LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE samples ADD COLUMN growth_process_en TEXT DEFAULT ''")
 
     # Dynamic migration for bilingual sample results
     try:
@@ -206,9 +213,9 @@ def get_all_samples(query=None, sort_mode='date'):
                     EXISTS(SELECT 1 FROM xrd_images x WHERE x.sample_id = s.id) as has_xrd_images,
                     EXISTS(SELECT 1 FROM edx_images e WHERE e.sample_id = s.id) as has_edx_images
                    FROM samples s
-                   WHERE s.id LIKE ? OR s.target_product LIKE ? OR s.notes LIKE ? OR s.results LIKE ? OR s.results_en LIKE ? OR s.growth_process LIKE ?
+                   WHERE s.id LIKE ? OR s.target_product LIKE ? OR s.notes LIKE ? OR s.results LIKE ? OR s.results_en LIKE ? OR s.growth_process LIKE ? OR s.growth_process_en LIKE ?
                    {ORDER_CLAUSE}""",
-                (q, q, q, q, q, q)
+                (q, q, q, q, q, q, q)
             ).fetchall()
         else:
             rows = conn.execute(f"""SELECT s.*,
@@ -272,11 +279,11 @@ def create_sample(data):
     conn = get_db()
     try:
         conn.execute(
-            """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, has_xrd, has_edx, has_pdf, growth_process,
+            """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, has_xrd, has_edx, has_pdf, growth_process, growth_process_en,
                element_ratios, actual_masses, notes, results, results_en,
                sintering_start, sintering_duration, sintering_end,
                created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 data['id'],
                 data.get('target_product', ''),
@@ -287,6 +294,7 @@ def create_sample(data):
                 data.get('has_edx', 0),
             data.get('has_pdf', 0),
                 data.get('growth_process', ''),
+                data.get('growth_process_en', ''),
                 json.dumps(data.get('element_ratios', []), ensure_ascii=False),
                 json.dumps(data.get('actual_masses', []), ensure_ascii=False),
                 data.get('notes', ''),
@@ -319,13 +327,13 @@ def update_sample(sample_id, data):
             conn.execute("BEGIN TRANSACTION")
             
             conn.execute(
-                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?,
+                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?, results_en=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
                    updated_at=?
                    WHERE id=?""",
                 (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
-            data.get('has_pdf', 0), data.get('growth_process', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
+            data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
             )
             
             for table in ['photos', 'edx_images', 'xrd_images', 'data_files', 'other_files', 'todo_tasks']:
@@ -365,13 +373,13 @@ def update_sample(sample_id, data):
             conn.execute("PRAGMA foreign_keys = ON")
         else:
             conn.execute(
-                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?,
+                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?, results_en=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
                    updated_at=?
                    WHERE id=?""",
                 (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
-            data.get('has_pdf', 0), data.get('growth_process', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
+            data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
             )
             conn.commit()
     finally:

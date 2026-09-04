@@ -23,12 +23,13 @@ const translations = {
             copyTitle: "复制此样品的流程、产物、元素配比", copyBtn: "复制样品", cancelBtn: "退出编辑", deleteBtn: "删除", saveBtn: "保存",
             exportWordBtn: "导出 Word", exportWordTitle: "导出为 Word 文档",
             translateResultsBtn: "en to cn", translateResultsTitle: "将英文结果翻译为中文",
+            translateGrowthBtn: "en to cn", translateGrowthTitle: "将英文生长流程翻译为中文",
             sections: { basicInfo: "基本信息", growthProcess: "生长流程", results: "结果", notes: "额外备注", calculator: "元素比例 & 质量计算", photos: "实物照片", xrd: "XRD 衍射分析", edx: "EDX 能谱分析", dataFiles: "数据文件 (.dat)", otherFiles: "其他文件" },
             fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态", measurements: "测量",
             documents: "文件",
                        sinteringStart: "开始烧制时间", sinteringDuration: "烧制耗时 (小时)", sinteringEnd: "结束时间",
                        sinteringNowBtn: "当前时间", sinteringNowTitle: "设为当前时间" },
-            placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcess: "描述晶体的生长方法、温度曲线、时间等参数...", resultsZh: "实验结果描述...", resultsEn: "实验结果英文描述...", notes: "其他需要记录的信息..." },
+            placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcessZh: "描述晶体的生长方法、温度曲线、时间等参数...", growthProcessEn: "描述晶体的英文生长方法、温度曲线、时间等参数...", resultsZh: "实验结果描述...", resultsEn: "实验结果英文描述...", notes: "其他需要记录的信息..." },
             status: { success: "成功", fail: "失败", pending: "待定", growing: "生长中", done: "生长完成" },
             measurements: { electric: "电学测量", magnetic: "磁性测量", xrd: "XRD", edx: "EDX" },
             documents: { pdf: "PDF" },
@@ -40,6 +41,7 @@ const translations = {
             samplesCount: "{0} 个样品", noMatch: "没有找到匹配的样品", noSamples: "还没有样品，点击上方按钮新建",
             fetchElementsFailed: "获取元素表失败", loadListFailed: "加载样品列表失败", fetchSampleFailed: "获取样品详情失败",
             translateSourceEmpty: "请先填写源语言结果", translating: "正在翻译...", translationCompleteUnsaved: "翻译完成，尚未保存", translationFailed: "翻译失败",
+            translateGrowthSourceEmpty: "请先填写源语言生长流程", growthTranslationCompleteUnsaved: "生长流程翻译完成，尚未保存", growthTranslationFailed: "生长流程翻译失败",
             enterId: "请输入样品编号", saveFailed: "保存失败", saveSuccess: "保存成功", restoredOriginal: "已恢复原始数据",
             confirmDelete: "确定要删除样品 \"{0}\" 吗？此操作不可撤销。", deleteFailed: "删除失败", deleteSuccess: "已删除样品",
             copySuccess: "已复制流程、产物、元素配比，请输入新的样品编号", addElementFirst: "请先添加元素", selectReference: "请选择一个参考元素",
@@ -66,12 +68,13 @@ const translations = {
             copyTitle: "Copy process, product, and elemental ratios", copyBtn: "Copy", cancelBtn: "Cancel", deleteBtn: "Delete", saveBtn: "Save",
             exportWordBtn: "Export Word", exportWordTitle: "Export to Word",
             translateResultsBtn: "cn to en", translateResultsTitle: "Translate Chinese results to English",
+            translateGrowthBtn: "cn to en", translateGrowthTitle: "Translate Chinese growth process to English",
             sections: { basicInfo: "Basic Info", growthProcess: "Growth Process", results: "Results", notes: "Notes", calculator: "Element Ratios & Mass", photos: "Photos", xrd: "XRD Analysis", edx: "EDX Analysis", dataFiles: "Data Files (.dat)", otherFiles: "Other Files" },
             fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status", measurements: "Measurements",
             documents: "Files",
                        sinteringStart: "Sintering Start", sinteringDuration: "Duration (hours)", sinteringEnd: "End Time",
                        sinteringNowBtn: "Now", sinteringNowTitle: "Set to current time" },
-            placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcess: "Describe growth method, temp profile, time, etc...", resultsZh: "Chinese experiment results...", resultsEn: "Experiment results...", notes: "Any other notes..." },
+            placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcessZh: "Describe the growth method, temp profile, time, etc...", growthProcessEn: "Describe the English growth method, temp profile, time, etc...", resultsZh: "Chinese experiment results...", resultsEn: "Experiment results...", notes: "Any other notes..." },
             status: { success: "Success", fail: "Fail", pending: "Pending", growing: "Growing", done: "Done" },
             measurements: { electric: "Electric", magnetic: "Magnetic", xrd: "XRD", edx: "EDX" },
             documents: { pdf: "PDF" },
@@ -83,6 +86,7 @@ const translations = {
             samplesCount: "{0} Samples", noMatch: "No matching samples found", noSamples: "No samples yet, create one.",
             fetchElementsFailed: "Failed to fetch elements", loadListFailed: "Failed to load sample list", fetchSampleFailed: "Failed to fetch sample details",
             translateSourceEmpty: "Please enter results in the source language first", translating: "Translating...", translationCompleteUnsaved: "Translation complete, not saved", translationFailed: "Translation failed",
+            translateGrowthSourceEmpty: "Please enter the growth process in the source language first", growthTranslationCompleteUnsaved: "Growth process translation complete, not saved", growthTranslationFailed: "Growth process translation failed",
             enterId: "Please enter Sample ID", saveFailed: "Failed to save", saveSuccess: "Saved successfully", restoredOriginal: "Restored original data",
             confirmDelete: "Are you sure you want to delete sample \"{0}\"? This action cannot be undone.", deleteFailed: "Failed to delete", deleteSuccess: "Sample deleted",
             copySuccess: "Copied process, product, and ratios. Please enter a new ID.", addElementFirst: "Add an element first", selectReference: "Select a reference element",
@@ -158,6 +162,7 @@ function updateI18n() {
     }
 
     updateResultsLanguageUI();
+    updateGrowthLanguageUI();
 }
 
 function updateResultsLanguageUI() {
@@ -167,6 +172,15 @@ function updateResultsLanguageUI() {
     resultsZhFieldInput.hidden = !showChinese;
     resultsEnFieldInput.hidden = showChinese;
     autoResizeTextarea(showChinese ? resultsZhFieldInput : resultsEnFieldInput);
+}
+
+function updateGrowthLanguageUI() {
+    if (!growthProcessZhFieldInput || !growthProcessEnFieldInput) return;
+
+    const showChinese = currentLang === 'zh';
+    growthProcessZhFieldInput.hidden = !showChinese;
+    growthProcessEnFieldInput.hidden = showChinese;
+    autoResizeTextarea(showChinese ? growthProcessZhFieldInput : growthProcessEnFieldInput);
 }
 
 function toggleLanguage() {
@@ -197,10 +211,12 @@ const sampleCountEl = document.getElementById('sampleCount');
 // Form fields
 const sampleIdInput = document.getElementById('sampleId');
 const targetProductInput = document.getElementById('targetProduct');
-const growthProcessInput = document.getElementById('growthProcess');
+const growthProcessZhFieldInput = document.getElementById('growthProcessZhField');
+const growthProcessEnFieldInput = document.getElementById('growthProcessEnField');
 const resultsZhFieldInput = document.getElementById('resultsZhField');
 const resultsEnFieldInput = document.getElementById('resultsEnField');
 const translateResultsBtn = document.getElementById('translateResultsBtn');
+const translateGrowthBtn = document.getElementById('translateGrowthBtn');
 const notesFieldInput = document.getElementById('notesField');
 const toggleSuccess = document.getElementById('toggleSuccess');
 const toggleFail = document.getElementById('toggleFail');
@@ -362,6 +378,9 @@ function bindEvents() {
     if (translateResultsBtn) {
         translateResultsBtn.addEventListener('click', () => translateResults());
     }
+    if (translateGrowthBtn) {
+        translateGrowthBtn.addEventListener('click', () => translateGrowthProcess());
+    }
     if (exportWordBtn) {
         exportWordBtn.addEventListener('click', () => {
             if (!currentSampleId) return;
@@ -513,6 +532,60 @@ function updateTranslateResultsButton() {
     const label = translateResultsBtn.querySelector('[data-i18n="form.translateResultsBtn"]');
     if (label) label.textContent = t('form.translateResultsBtn');
     translateResultsBtn.title = t('form.translateResultsTitle');
+}
+
+function updateTranslateGrowthButton() {
+    if (!translateGrowthBtn) return;
+    const label = translateGrowthBtn.querySelector('[data-i18n="form.translateGrowthBtn"]');
+    if (label) label.textContent = t('form.translateGrowthBtn');
+    translateGrowthBtn.title = t('form.translateGrowthTitle');
+}
+
+async function translateGrowthProcess() {
+    if (!translateGrowthBtn || !growthProcessZhFieldInput || !growthProcessEnFieldInput) return;
+
+    const showChinese = currentLang === 'zh';
+    const sourceLang = showChinese ? 'en' : 'zh';
+    const targetLang = showChinese ? 'zh' : 'en';
+    const sourceField = showChinese ? growthProcessEnFieldInput : growthProcessZhFieldInput;
+    const targetField = showChinese ? growthProcessZhFieldInput : growthProcessEnFieldInput;
+    const sourceText = sourceField.value.trim();
+
+    if (!sourceText) {
+        showToast(t('messages.translateGrowthSourceEmpty'), 'warning');
+        return;
+    }
+
+    translateGrowthBtn.disabled = true;
+    translateGrowthBtn.setAttribute('aria-busy', 'true');
+
+    try {
+        const resp = await fetch('/api/results/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: sourceText,
+                source_lang: sourceLang,
+                target_lang: targetLang
+            })
+        });
+
+        if (!resp.ok) throw new Error('translation request failed');
+
+        const data = await resp.json();
+        const translation = typeof data.translation === 'string' ? data.translation.trim() : '';
+        if (!translation) throw new Error('empty translation');
+
+        targetField.value = translation;
+        autoResizeTextarea(targetField);
+        showToast(t('messages.growthTranslationCompleteUnsaved'), 'success');
+    } catch (e) {
+        showToast(t('messages.growthTranslationFailed'), 'error');
+    } finally {
+        translateGrowthBtn.disabled = false;
+        translateGrowthBtn.removeAttribute('aria-busy');
+        updateTranslateGrowthButton();
+    }
 }
 
 async function translateResults() {
@@ -739,13 +812,15 @@ function createNewSample() {
     sampleIdInput.value = '';
     sampleIdInput.disabled = false;
     targetProductInput.value = '';
-    growthProcessInput.value = '';
+    growthProcessZhFieldInput.value = '';
+    growthProcessEnFieldInput.value = '';
     resultsZhFieldInput.value = '';
     resultsEnFieldInput.value = '';
     notesFieldInput.value = '';
 
     // Auto-resize empty textareas back to minimal height
-    autoResizeTextarea(growthProcessInput);
+    autoResizeTextarea(growthProcessZhFieldInput);
+    autoResizeTextarea(growthProcessEnFieldInput);
     autoResizeTextarea(resultsZhFieldInput);
     autoResizeTextarea(resultsEnFieldInput);
     autoResizeTextarea(notesFieldInput);
@@ -783,13 +858,15 @@ function fillForm(sample) {
     sampleIdInput.value = sample.id;
     sampleIdInput.disabled = false; // 允许修改 ID
     targetProductInput.value = sample.target_product || '';
-    growthProcessInput.value = sample.growth_process || '';
+    growthProcessZhFieldInput.value = sample.growth_process || '';
+    growthProcessEnFieldInput.value = sample.growth_process_en || '';
     resultsZhFieldInput.value = sample.results || '';
     resultsEnFieldInput.value = sample.results_en || '';
     notesFieldInput.value = sample.notes || '';
 
     // Auto-resize populated textareas
-    autoResizeTextarea(growthProcessInput);
+    autoResizeTextarea(growthProcessZhFieldInput);
+    autoResizeTextarea(growthProcessEnFieldInput);
     autoResizeTextarea(resultsZhFieldInput);
     autoResizeTextarea(resultsEnFieldInput);
     autoResizeTextarea(notesFieldInput);
@@ -948,7 +1025,8 @@ async function saveSample() {
         has_xrd: hasXrd,
         has_edx: hasEdx,
         has_pdf: hasPdf,
-        growth_process: growthProcessInput.value.trim(),
+        growth_process: growthProcessZhFieldInput.value.trim(),
+        growth_process_en: growthProcessEnFieldInput.value.trim(),
         results: resultsZhFieldInput.value.trim(),
         results_en: resultsEnFieldInput.value.trim(),
         notes: notesFieldInput.value.trim(),
@@ -1076,9 +1154,10 @@ function copySample() {
     sampleIdInput.disabled = false;
     sampleIdInput.focus();
 
-    // 保留的字段：目标产物、生长流程、元素比例、质量
+    // 保留的字段：目标产物、中英文生长流程、元素比例、质量
     targetProductInput.value = originalData.target_product || '';
-    growthProcessInput.value = originalData.growth_process || '';
+    growthProcessZhFieldInput.value = originalData.growth_process || '';
+    growthProcessEnFieldInput.value = originalData.growth_process_en || '';
 
     // 清空这些字段
     resultsZhFieldInput.value = '';
@@ -1086,7 +1165,8 @@ function copySample() {
     notesFieldInput.value = '';
 
     // Auto-resize empty/populated textareas
-    autoResizeTextarea(growthProcessInput);
+    autoResizeTextarea(growthProcessZhFieldInput);
+    autoResizeTextarea(growthProcessEnFieldInput);
     autoResizeTextarea(resultsZhFieldInput);
     autoResizeTextarea(resultsEnFieldInput);
     autoResizeTextarea(notesFieldInput);

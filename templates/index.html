@@ -175,9 +175,17 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
                         <span data-i18n="form.sections.growthProcess">生长流程</span>
                     </h3>
-                        <div class="calc-context-info">
-                            <span class="calc-info-badge section-sample-id-display">-</span>
-                            <span class="calc-info-badge section-target-product-display">-</span>
+                        <div class="growth-header-actions">
+                            <div class="growth-toolbar">
+                                <button type="button" class="btn-outline btn-sm" id="translateGrowthBtn"
+                                        data-i18n-title="form.translateGrowthTitle">
+                                    <span data-i18n="form.translateGrowthBtn">en to cn</span>
+                                </button>
+                            </div>
+                            <div class="calc-context-info">
+                                <span class="calc-info-badge section-sample-id-display">-</span>
+                                <span class="calc-info-badge section-target-product-display">-</span>
+                            </div>
                         </div>
                     </div>
                     <!-- 烧制时间行 -->
@@ -201,7 +209,8 @@
                             <input type="text" id="sinteringEnd" readonly tabindex="-1" placeholder="—" class="sintering-end-display">
                         </div>
                     </div>
-                    <textarea id="growthProcess" rows="4" placeholder="描述晶体的生长方法、温度曲线、时间等参数..." data-i18n-placeholder="form.placeholders.growthProcess"></textarea>
+                    <textarea id="growthProcessZhField" rows="4" placeholder="描述晶体的生长方法、温度曲线、时间等参数..." data-i18n-placeholder="form.placeholders.growthProcessZh"></textarea>
+                    <textarea id="growthProcessEnField" rows="4" hidden placeholder="Describe the growth method, temperature profile, time, etc..." data-i18n-placeholder="form.placeholders.growthProcessEn"></textarea>
                 </section>
 
                 <!-- 结果 -->

@@ -17,8 +17,8 @@
 - **Microsoft To Do 深度集成** — 绑定微软账户，自动同步样品的烧制结束时间，实现高效的多端到期提醒
 - **系统级时区配置** — 独立于部署服务器所在地的时区设置，确保前端展示与后端数据库时间无缝一致
 - **双语与响应式设计** — 支持中英文 (i18n) 动态无缝切换；为手机、平板深度优化的独立排版结构和交互体验；提供全屏的宽屏浏览模式
-- **双语结果与手动翻译** — 中文和英文结果分别保存：旧字段 `results` 保存中文，新字段 `results_en` 保存英文；已有数据不会自动批量翻译。中文界面按钮为 `en to cn`，英文界面按钮为 `cn to en`。翻译通过 `POST /api/results/translate` 完成，直接复用 EDX 图片识别使用的同一个 OpenAI-compatible API、client 和配置。翻译只更新当前表单草稿，必须手动点击 Save/保存（manual save）才会写入数据库，不会自动保存（no auto-save）。
-- **按语言导出 Word/CSV** — Word 和 CSV 导出根据 `lang` 选择对应的已保存结果列（`zh` → `results`，`en` → `results_en`），不会跨语言 fallback。未保存的草稿不会出现在导出文件中（language-specific Word/CSV exports）。
+- **双语结果、生长流程与手动翻译** — 中文和英文结果分别保存到 `results` / `results_en`，中文和英文生长流程分别保存到 `growth_process` / `growth_process_en`。迁移时保留旧中文生长流程，新英文字段初始为空，不会批量翻译。中文界面两个区均显示 `en to cn` 按钮，英文界面均显示 `cn to en`。翻译通过 `POST /api/results/translate` 完成，直接复用 EDX 图片识别使用的同一个 OpenAI-compatible API、client 和配置。翻译只更新当前表单草稿，必须手动点击 Save/保存（manual save）才会写入数据库，不会自动保存（no auto-save）。复制样品时保留中英文两个生长流程字段，但结果字段仍按现有逻辑清空。
+- **按语言导出 Word/CSV** — Word 和 CSV 导出根据 `lang` 选择对应的已保存字段（`zh` → `growth_process` / `results`，`en` → `growth_process_en` / `results_en`），不会跨语言 fallback。未保存的草稿不会出现在导出文件中（language-specific Word/CSV exports）。
 - **自动备份** — 启动时立即备份 + 每日增量热备 + 每周完整 zip 压缩备份，配套命令行极速恢复工具
 
 ## 技术栈
@@ -124,7 +124,7 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 | POST | `/api/samples/<id>/xrd` | 上传 XRD 图片 |
 | POST | `/api/samples/<id>/edx` | 上传 EDX 图片 |
 | POST | `/api/edx/<id>/recognize` | AI 识别 EDX |
-| POST | `/api/results/translate` | 在中英文之间翻译当前结果草稿（不会保存） |
+| POST | `/api/results/translate` | 在中英文之间翻译当前结果或生长流程草稿（不会保存） |
 | POST | `/api/edx/reorder` | EDX 图片排序 |
 | POST | `/api/samples/<id>/datafiles` | 上传数据文件 |
 | POST | `/api/samples/<id>/otherfiles`| 上传其他文件 |
