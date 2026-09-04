@@ -15,7 +15,7 @@ let isReorderMode = false; // 是否处于编辑顺序模式（全屏+手动排�
 const translations = {
     zh: {
         title: "晶体材料样品管理系统",
-        nav: { sampleList: "样品列表", logoutTitle: "退出登录", logout: "🔒 退出", exportTitle: "导出样品数据", export: "导出" },
+        nav: { sampleList: "样品列表", logoutTitle: "退出登录", logout: "🔒 退出", exportTitle: "导出样品数据", export: "导出", exportPptxTitle: "导出 PPTX", exportPptx: "导出 PPTX" },
         sidebar: { searchPlaceholder: "搜索样品编号、产物、备注...", clearSearch: "清除搜索", newSample: "新建样品" },
         main: { emptyStateTitle: "选择或新建一个样品", emptyStateDesc: "从左侧列表选择一个样品查看详情，或点击「新建样品」开始记录" },
         form: {
@@ -60,7 +60,7 @@ const translations = {
     },
     en: {
         title: "Crystal Sample Management",
-        nav: { sampleList: "Sample List", logoutTitle: "Logout", logout: "🔒 Logout", exportTitle: "Export Sample Data", export: "Export" },
+        nav: { sampleList: "Sample List", logoutTitle: "Logout", logout: "🔒 Logout", exportTitle: "Export Sample Data", export: "Export", exportPptxTitle: "Export PPTX", exportPptx: "Export PPTX" },
         sidebar: { searchPlaceholder: "Search ID, product, notes...", clearSearch: "Clear", newSample: "New Sample" },
         main: { emptyStateTitle: "Select or Create a Sample", emptyStateDesc: "Select a sample from the list to view details, or click 'New Sample'." },
         form: {
@@ -1981,6 +1981,31 @@ async function exportSamples() {
 }
 
 window.exportSamples = exportSamples;
+
+async function exportSamplesPptx() {
+    try {
+        const response = await fetch(`/api/samples/export_pptx?lang=${currentLang}`);
+        if (!response.ok) {
+            showToast(t('messages.exportFailed'), 'error');
+            return;
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `samples_export_${currentLang}_${new Date().toISOString().slice(0, 10)}.pptx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        showToast(t('messages.exportSuccess'), 'success');
+    } catch (e) {
+        console.error('PPTX 导出失败', e);
+        showToast(t('messages.exportFailed'), 'error');
+    }
+}
+
+window.exportSamplesPptx = exportSamplesPptx;
 
 // ============================================================
 // Microsoft To Do Integration

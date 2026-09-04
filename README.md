@@ -10,7 +10,7 @@ A local web application designed to manage all information regarding samples obt
 - **Basic Info** — Sample ID, Target Product, Status (Success/Fail/Pending/Growing/Completed), Unique Measurements (Electric/Magnetic), Growth Process & Sintering Time Tracking, Results, Notes.
 - **Enhanced Navigation & UX** — One-click fast previous/next navigation, auto-resizing textareas, intelligent anti-scroll during saves, and smart duplication that preserves custom reference elements.
 - **Mass Calculation** — Intuitive display of current context (ID/Product); input element molar ratios + mass of one reference element to automatically calculate the required mass for other elements.
-- **Export** — Export all samples as CSV or export individual sample reports (bilingual) directly to Microsoft Word (`.docx`). Intelligent filename generation based on ID, target product, and status.
+- **Export** — Export all samples as CSV or PPTX, or export individual sample reports (bilingual) directly to Microsoft Word (`.docx`). The PPTX export creates one slide per sample with a color-coded title and separate result/growth-method areas. Intelligent filename generation based on ID, target product, and status.
 - **Photos & XRD** — Multiple photo/XRD image uploads (supports camera capture), automatic lazy-loaded thumbnails, zoom preview, and perfectly restored original filenames upon download. XRD/EDX statuses are automatically adjusted based on uploads. Non-image data files in XRD and other sections support direct inline opening (PDF) or downloading. Word export perfectly formats image spacing and omits filenames for physical photos to maintain report cleanliness.
 - **EDX Analysis** — Upload EDX spectrum images (auto-generates thumbnails) → uses GPT Vision API to automatically recognize INCA-style elemental composition, with manual reordering support for EDX data cards.
 - **Data & Other Files** — Upload/download `.dat/.csv/.txt/.pdf` and any other ad-hoc attachment files with reliable strict original filename retention.
@@ -25,7 +25,7 @@ A local web application designed to manage all information regarding samples obt
 
 | Component | Technology |
 |-----------|------------|
-| Backend | Python / Flask / Pillow (Thumbnail processing) |
+| Backend | Python / Flask / Pillow / python-pptx (PPTX export) |
 | Database | SQLite |
 | Frontend | HTML / CSS / Vanilla JavaScript |
 | AI Vision | OpenAI-compatible APIs (GPT-4o / Gemini) |
@@ -118,6 +118,7 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 | DELETE | `/api/samples/<id>` | Delete sample |
 | POST | `/api/samples/reorder` | Update sample sorting order |
 | GET | `/api/samples/export?lang=zh` | Export all samples to language-specific CSV (`lang=zh` or `lang=en`) |
+| GET | `/api/samples/export_pptx?lang=zh` | Export all samples to a language-specific PPTX (`lang=zh` or `lang=en`) |
 | GET | `/api/samples/<id>/export_word?lang=zh`| Export sample to language-specific Word (`lang=zh` or `lang=en`) |
 | POST | `/api/samples/<id>/photos` | Upload photos |
 | POST | `/api/samples/<id>/xrd` | Upload XRD images |

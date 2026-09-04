@@ -892,6 +892,114 @@ def export_samples():
     return response
 
 
+@app.route('/api/samples/export_pptx', methods=['GET'])
+def export_samples_pptx():
+    """导出所有样品为按样品分页的 PowerPoint 文档"""
+    lang = 'en' if request.args.get('lang') == 'en' else 'zh'
+    try:
+        from pptx import Presentation
+        from pptx.dml.color import RGBColor
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+        from pptx.oxml.ns import qn
+        from pptx.util import Inches, Pt
+    except ImportError:
+        message = (
+            '未安装 python-pptx 库，请联系管理员'
+            if lang == 'zh'
+            else 'python-pptx library not installed, contact admin'
+        )
+        return jsonify({'error': message}), 500
+
+    samples = models.get_all_samples()
+    presentation = Presentation()
+    presentation.slide_width = Inches(13.333)
+    presentation.slide_height = Inches(7.5)
+    blank_layout = presentation.slide_layouts[6]
+    font_name = 'Times New Roman' if lang == 'en' else 'Microsoft YaHei'
+    result_title = 'Results' if lang == 'en' else '结果'
+    growth_title = 'Growth Method' if lang == 'en' else '生长方法'
+
+    def set_run_font(run, size, color, bold=False):
+        run.font.name = font_name
+        run.font.size = Pt(size)
+        run.font.bold = bold
+        run.font.color.rgb = color
+        r_pr = run._r.get_or_add_rPr()
+        r_pr.set(qn('a:latin'), font_name)
+        r_pr.set(qn('a:ea'), font_name)
+
+    def add_textbox(slide, left, top, width, height, text, size, color, bold=False):
+        textbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        text_frame = textbox.text_frame
+        text_frame.clear()
+        text_frame.word_wrap = True
+        text_frame.margin_left = Inches(0.12)
+        text_frame.margin_right = Inches(0.12)
+        text_frame.margin_top = Inches(0.06)
+        text_frame.margin_bottom = Inches(0.06)
+        text_frame.vertical_anchor = MSO_ANCHOR.TOP
+        paragraph = text_frame.paragraphs[0]
+        paragraph.alignment = PP_ALIGN.LEFT
+        if text:
+            run = paragraph.add_run()
+            run.text = text
+            set_run_font(run, size, color, bold)
+        return textbox
+
+    def add_text_region(slide, top, label, text, height):
+        add_textbox(slide, 0.7, top, 11.9, 0.34, label, 15, RGBColor(75, 85, 99), True)
+        box = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(0.7), Inches(top + 0.4), Inches(11.9), Inches(height),
+        )
+        box.fill.solid()
+        box.fill.fore_color.rgb = RGBColor(247, 248, 251)
+        box.line.color.rgb = RGBColor(221, 226, 235)
+        box.line.width = Pt(0.8)
+        text_box = add_textbox(
+            slide, 0.86, top + 0.52, 11.58, height - 0.22,
+            text, 16, RGBColor(31, 41, 55), False,
+        )
+        return text_box
+
+    for sample in samples:
+        slide = presentation.slides.add_slide(blank_layout)
+        status_value = sample.get('is_successful', 2)
+        try:
+            status_value = int(status_value)
+        except (TypeError, ValueError):
+            status_value = 2
+        if status_value == 1:
+            title_color = RGBColor(22, 163, 74)
+        elif status_value == 0:
+            title_color = RGBColor(220, 38, 38)
+        else:
+            title_color = RGBColor(0, 0, 0)
+
+        status_label = _format_export_status(status_value, lang)
+        title = f"{sample.get('id', '')}-{sample.get('target_product', '')}-{status_label}"
+        result_key = 'results_en' if lang == 'en' else 'results'
+        result_text = sample.get(result_key, '') or ''
+        growth_method = _format_export_growth_method(sample, lang)
+
+        # Title is deliberately the first shape so its color is easy to inspect and edit.
+        add_textbox(slide, 0.7, 0.35, 11.9, 0.62, title, 25, title_color, True)
+        add_text_region(slide, 1.25, result_title, result_text, 1.95)
+        # Reserve a stable three-line area for the growth method.
+        add_text_region(slide, 4.0, growth_title, growth_method, 2.35)
+
+    output = BytesIO()
+    presentation.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        as_attachment=True,
+        download_name=f'samples_export_{lang}_{config.get_local_now().strftime("%Y%m%d_%H%M%S")}.pptx',
+    )
+
+
 @app.route('/api/samples/<sample_id>/export_word', methods=['GET'])
 def export_sample_word(sample_id):
     """导出单个样品为 Word 文档 (中文或英文)"""

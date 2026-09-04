@@ -10,7 +10,7 @@
 - **基本信息** — 样品编号、目标产物、状态（成功/失败/待定/生长中/已出炉）、专属测量标记（电学/磁性）、生长流程与烧制时间记录、结果、备注
 - **快捷导航与体验** — 极速的前后样品切换、文本框高度自适应、智能避免自动滚动，及支持保留参考元素的快速复制功能
 - **元素质量计算** — 直观展示当前计算环境（样品ID/产物）；输入元素摩尔比和某参考元素质量，自动计算其余元素称量质量
-- **数据导出** — 支持一键导出所有样品数据至 CSV 文件，或导出单一样品报告（双语）至 Word (`.docx`)。自动根据样品编号、目标产物和状态生成直观的文件名。
+- **数据导出** — 支持一键导出所有样品数据至 CSV 或 PPTX 文件，也支持将单一样品报告（双语）导出为 Word (`.docx`)。PPTX 每个样品一页，标题根据状态着色，并分别显示结果和生长方法区域。文件名根据样品编号、目标产物和状态智能生成。
 - **实物照片与XRD** — 照片与XRD图片上传（支持拍照）、自动生成缩略图（按需加载）、点击放大预览原图、原生文件名还原下载，并根据上传自动调整测量状态。非图片的 XRD 和附件数据可以直接在网页端打开预览 (如 PDF)。导出 Word 时，图片排版精确居中、留空隔开，并在 XRD 图片上方展示文件名，实物照片则自动隐藏文件名以保持报告整洁。
 - **EDX 能谱分析** — 上传 EDX 谱图生成缩略图 → 调用 GPT Vision API 自动识别 INCA 表格成分，并支持 EDX 卡片的上下排序调整
 - **数据与附件区** — 支持上传/下载 `.dat/.csv/.txt/.pdf` 等实验数据文件以及不限格式的其他附件，完美还原原始文件名
@@ -25,7 +25,7 @@
 
 | 组件 | 技术 |
 |------|------|
-| 后端 | Python / Flask / Pillow (缩略图处理) |
+| 后端 | Python / Flask / Pillow / python-pptx (PPTX 导出) |
 | 数据库 | SQLite |
 | 前端 | HTML / CSS / JavaScript |
 | AI 识别 | OpenAI 兼容 API (GPT-4o / Gemini-3.1pro) |
@@ -119,6 +119,7 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 | DELETE | `/api/samples/<id>` | 删除样品 |
 | POST | `/api/samples/reorder` | 更新样品排序 |
 | GET | `/api/samples/export?lang=zh` | 按语言导出全部样品为 CSV（`lang=zh` 或 `lang=en`） |
+| GET | `/api/samples/export_pptx?lang=zh` | 按语言导出全部样品为 PPTX（`lang=zh` 或 `lang=en`） |
 | GET | `/api/samples/<id>/export_word?lang=zh`| 按语言导出样品为 Word（`lang=zh` 或 `lang=en`） |
 | POST | `/api/samples/<id>/photos` | 上传照片 |
 | POST | `/api/samples/<id>/xrd` | 上传 XRD 图片 |
