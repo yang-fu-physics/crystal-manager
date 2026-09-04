@@ -827,6 +827,34 @@ def _format_element_ratios(element_ratios):
     return ''.join(parts)
 
 
+def _format_export_status(status, lang):
+    """将样品状态格式化为总 CSV 导出的本地化文字"""
+    labels = {
+        'zh': {0: '失败', 1: '成功', 2: '待定', 3: '生长中', 4: '生长完成'},
+        'en': {0: 'Fail', 1: 'Success', 2: 'Pending', 3: 'Growing', 4: 'Done'},
+    }
+    try:
+        status = int(status)
+    except (TypeError, ValueError):
+        status = 2
+    lang_labels = labels['en'] if lang == 'en' else labels['zh']
+    return lang_labels.get(status, lang_labels[2])
+
+
+def _format_export_growth_method(sample, lang):
+    """将元素比例和对应语言的生长流程合并为一个导出单元格"""
+    ratio = _format_element_ratios(sample.get('element_ratios', []))
+    growth_key = 'growth_process_en' if lang == 'en' else 'growth_process'
+    growth_process = sample.get(growth_key, '') or ''
+    parts = []
+    if ratio:
+        ratio_label = 'Element Ratio: ' if lang == 'en' else '元素比例：'
+        parts.append(ratio_label + ratio)
+    if growth_process:
+        parts.append(growth_process)
+    return '\n'.join(parts)
+
+
 @app.route('/api/samples/export', methods=['GET'])
 def export_samples():
     """导出所有样品为 CSV 格式"""
@@ -838,18 +866,19 @@ def export_samples():
 
     # 写入表头
     if lang == 'en':
-        writer.writerow(['Sample ID', 'Element Ratio (Formula)', 'Growth Process', 'Results'])
+        writer.writerow(['Sample ID', 'Target Sample', 'Status', 'Result Text', 'Growth Method'])
     else:
-        writer.writerow(['编号', '元素比例（化学式）', '生长制度', '结果'])
+        writer.writerow(['编号', '目标样品', '是否成功', '结果中的文字', '生长方法'])
 
     # 写入数据
     for sample in samples:
-        element_formula = _format_element_ratios(sample.get('element_ratios', []))
+        result_key = 'results_en' if lang == 'en' else 'results'
         writer.writerow([
             sample.get('id', ''),
-            element_formula,
-            sample.get('growth_process_en', '') if lang == 'en' else sample.get('growth_process', ''),
-            sample.get('results_en', '') if lang == 'en' else sample.get('results', '')
+            sample.get('target_product', ''),
+            _format_export_status(sample.get('is_successful', 2), lang),
+            sample.get(result_key, '') or '',
+            _format_export_growth_method(sample, lang),
         ])
 
     # 生成响应

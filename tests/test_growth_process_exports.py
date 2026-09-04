@@ -82,7 +82,7 @@ def test_csv_zh_export_uses_chinese_growth_process_only(client):
     assert response.status_code == 200
     rows = _csv_rows(response)
     row = next(row for row in rows[1:] if row[0] == "growth-csv-zh")
-    assert row[2] == "Chinese CSV process"
+    assert row[4] == "Chinese CSV process"
     assert "English CSV process" not in row
 
 
@@ -100,7 +100,7 @@ def test_csv_en_export_uses_english_growth_process_only(client):
     assert response.status_code == 200
     rows = _csv_rows(response)
     row = next(row for row in rows[1:] if row[0] == "growth-csv-en")
-    assert row[2] == "English CSV process"
+    assert row[4] == "English CSV process"
     assert "Chinese CSV process" not in row
 
 
@@ -118,5 +118,5 @@ def test_csv_growth_export_does_not_fallback_across_languages(client):
     assert response.status_code == 200
     rows = _csv_rows(response)
     row = next(row for row in rows[1:] if row[0] == "growth-csv-empty")
-    assert row[2] == ""
+    assert row[4] == ""
     assert "Chinese-only CSV process" not in row

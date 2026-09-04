@@ -101,7 +101,7 @@ def test_csv_zh_export_uses_saved_chinese_result_only(client):
     assert response.status_code == 200
     assert response.mimetype == "text/csv"
     rows = _csv_rows(response)
-    assert rows[1][-1] == "中文专属结果"
+    assert rows[1][3] == "中文专属结果"
     assert sum("中文专属结果" in row for row in rows for _ in [0]) == 1
     assert all("English-only result" not in row for row in rows)
 
@@ -120,7 +120,7 @@ def test_csv_en_export_uses_saved_english_result_only(client):
     assert response.status_code == 200
     assert response.mimetype == "text/csv"
     rows = _csv_rows(response)
-    assert rows[1][-1] == "English-only result"
+    assert rows[1][3] == "English-only result"
     assert sum("English-only result" in row for row in rows for _ in [0]) == 1
     assert all("中文专属结果" not in row for row in rows)
 
