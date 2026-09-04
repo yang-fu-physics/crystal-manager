@@ -158,6 +158,6 @@ def test_pptx_export_button_and_route_are_exposed_in_both_languages():
     assert 'onclick="exportSamplesPptx()"' in HTML
     assert "exportPptx" in JS
     assert "/api/samples/export_pptx?lang=${currentLang}" in JS
-    assert ".pptx" in JS
+    assert "format === 'pptx'" in JS
     assert "导出 PPTX" in JS
     assert "Export PPTX" in JS

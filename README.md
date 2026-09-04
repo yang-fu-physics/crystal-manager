@@ -18,7 +18,7 @@ A local web application designed to manage all information regarding samples obt
 - **Global Timezone Configuration** — Independent timezone setting decoupled from server location to ensure consistent time synchronization between frontend and database.
 - **Bilingual & Responsive UI** — Seamless dynamic i18n switching (EN/ZH); deep layout and touch optimizations for mobile and tablet, plus a widescreen fullscreen mode.
 - **Bilingual Results & Growth Process with Manual Translation** — Chinese and English results are stored separately (`results` / `results_en`), and growth processes are stored separately (`growth_process` / `growth_process_en`). Legacy Chinese growth text is preserved during migration; the new English field starts empty and is not batch-translated. The Chinese UI shows the `en to cn` button and the English UI shows `cn to en` for both sections. Translation uses `POST /api/results/translate`, directly reusing the same OpenAI-compatible API, client, and configuration as EDX image recognition. It updates only the current form draft; use manual save by clicking Save/保存, with no auto-save to the database. Copying a sample preserves both growth-process fields while results remain cleared.
-- **Language-Specific Word/CSV Export** — Word exports use the `lang` value to select corresponding saved fields (`zh` → `growth_process` / `results`, `en` → `growth_process_en` / `results_en`) and never fall back across languages. The total CSV export has five columns: Sample ID, Target Sample, Status, Result Text, and Growth Method. Element ratios are placed on the first line of the Growth Method cell, followed by the language-specific growth process on a new line. Unsaved drafts are not included in exported files.
+- **Language-Specific Word/CSV/PPTX Export** — Word exports use the `lang` value to select corresponding saved fields (`zh` → `growth_process` / `results`, `en` → `growth_process_en` / `results_en`) and never fall back across languages. Total CSV/PPTX exports first open a sample-selection dialog, default to all samples, and export only the checked samples in dialog order. CSV has five columns: Sample ID, Target Sample, Status, Result Text, and Growth Method; element ratios are placed on the first line of the Growth Method cell and the language-specific growth process follows on a new line. PPTX creates one slide per selected sample. The CSV/PPTX GET routes continue to export all samples for backward compatibility; selected exports use POST with a JSON `sample_ids` list. Unsaved drafts are not included in exported files.
 - **Auto Backup** — Immediate automatic backup on startup + scheduled incremental hot backups (daily) + full compressed zip backups (weekly), alongside a comprehensive CLI restoration utility.
 
 ## Tech Stack
@@ -117,8 +117,8 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 | PUT | `/api/samples/<id>` | Update sample |
 | DELETE | `/api/samples/<id>` | Delete sample |
 | POST | `/api/samples/reorder` | Update sample sorting order |
-| GET | `/api/samples/export?lang=zh` | Export all samples to language-specific CSV (`lang=zh` or `lang=en`) |
-| GET | `/api/samples/export_pptx?lang=zh` | Export all samples to a language-specific PPTX (`lang=zh` or `lang=en`) |
+| GET, POST | `/api/samples/export?lang=zh` | Export all samples (GET) or selected samples (POST `sample_ids`) to language-specific CSV (`lang=zh` or `lang=en`) |
+| GET, POST | `/api/samples/export_pptx?lang=zh` | Export all samples (GET) or selected samples (POST `sample_ids`) to a language-specific PPTX (`lang=zh` or `lang=en`) |
 | GET | `/api/samples/<id>/export_word?lang=zh`| Export sample to language-specific Word (`lang=zh` or `lang=en`) |
 | POST | `/api/samples/<id>/photos` | Upload photos |
 | POST | `/api/samples/<id>/xrd` | Upload XRD images |

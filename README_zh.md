@@ -10,7 +10,7 @@
 - **基本信息** — 样品编号、目标产物、状态（成功/失败/待定/生长中/已出炉）、专属测量标记（电学/磁性）、生长流程与烧制时间记录、结果、备注
 - **快捷导航与体验** — 极速的前后样品切换、文本框高度自适应、智能避免自动滚动，及支持保留参考元素的快速复制功能
 - **元素质量计算** — 直观展示当前计算环境（样品ID/产物）；输入元素摩尔比和某参考元素质量，自动计算其余元素称量质量
-- **数据导出** — 支持一键导出所有样品数据至 CSV 或 PPTX 文件，也支持将单一样品报告（双语）导出为 Word (`.docx`)。PPTX 每个样品一页，标题根据状态着色，并分别显示结果和生长方法区域。文件名根据样品编号、目标产物和状态智能生成。
+- **数据导出** — 支持一键导出所有样品数据至 CSV 或 PPTX 文件，也支持将单一样品报告（双语）导出为 Word (`.docx`)。总 CSV/PPTX 导出会先打开样品选择窗口，默认全选，也可只导出勾选样品。PPTX 每个样品一页，标题根据状态着色，并分别显示结果和生长方法区域。文件名根据样品编号、目标产物和状态智能生成。
 - **实物照片与XRD** — 照片与XRD图片上传（支持拍照）、自动生成缩略图（按需加载）、点击放大预览原图、原生文件名还原下载，并根据上传自动调整测量状态。非图片的 XRD 和附件数据可以直接在网页端打开预览 (如 PDF)。导出 Word 时，图片排版精确居中、留空隔开，并在 XRD 图片上方展示文件名，实物照片则自动隐藏文件名以保持报告整洁。
 - **EDX 能谱分析** — 上传 EDX 谱图生成缩略图 → 调用 GPT Vision API 自动识别 INCA 表格成分，并支持 EDX 卡片的上下排序调整
 - **数据与附件区** — 支持上传/下载 `.dat/.csv/.txt/.pdf` 等实验数据文件以及不限格式的其他附件，完美还原原始文件名
@@ -18,7 +18,7 @@
 - **系统级时区配置** — 独立于部署服务器所在地的时区设置，确保前端展示与后端数据库时间无缝一致
 - **双语与响应式设计** — 支持中英文 (i18n) 动态无缝切换；为手机、平板深度优化的独立排版结构和交互体验；提供全屏的宽屏浏览模式
 - **双语结果、生长流程与手动翻译** — 中文和英文结果分别保存到 `results` / `results_en`，中文和英文生长流程分别保存到 `growth_process` / `growth_process_en`。迁移时保留旧中文生长流程，新英文字段初始为空，不会批量翻译。中文界面两个区均显示 `en to cn` 按钮，英文界面均显示 `cn to en`。翻译通过 `POST /api/results/translate` 完成，直接复用 EDX 图片识别使用的同一个 OpenAI-compatible API、client 和配置。翻译只更新当前表单草稿，必须手动点击 Save/保存（manual save）才会写入数据库，不会自动保存（no auto-save）。复制样品时保留中英文两个生长流程字段，但结果字段仍按现有逻辑清空。
-- **按语言导出 Word/CSV** — Word 导出根据 `lang` 选择对应的已保存字段（`zh` → `growth_process` / `results`，`en` → `growth_process_en` / `results_en`），不会跨语言 fallback。总 CSV 导出固定为五列：编号、目标样品、是否成功、结果中的文字、生长方法。元素比例放在“生长方法”单元格第一行，下面换行显示对应语言的生长流程。未保存的草稿不会出现在导出文件中（language-specific Word/CSV exports）。
+- **按语言导出 Word/CSV/PPTX** — Word 导出根据 `lang` 选择对应的已保存字段（`zh` → `growth_process` / `results`，`en` → `growth_process_en` / `results_en`），不会跨语言 fallback。总 CSV/PPTX 导出默认包含全部样品，也可通过选择窗口导出勾选的样品；GET 接口继续导出全部，POST + `sample_ids` 导出指定样品。CSV 固定为五列：编号、目标样品、是否成功、结果中的文字、生长方法。元素比例放在“生长方法”单元格第一行，下面换行显示对应语言的生长流程。PPTX 每个选中样品一页。未保存的草稿不会出现在导出文件中（language-specific Word/CSV/PPTX exports）。
 - **自动备份** — 启动时立即备份 + 每日增量热备 + 每周完整 zip 压缩备份，配套命令行极速恢复工具
 
 ## 技术栈
@@ -118,8 +118,8 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 | PUT | `/api/samples/<id>` | 更新样品 |
 | DELETE | `/api/samples/<id>` | 删除样品 |
 | POST | `/api/samples/reorder` | 更新样品排序 |
-| GET | `/api/samples/export?lang=zh` | 按语言导出全部样品为 CSV（`lang=zh` 或 `lang=en`） |
-| GET | `/api/samples/export_pptx?lang=zh` | 按语言导出全部样品为 PPTX（`lang=zh` 或 `lang=en`） |
+| GET, POST | `/api/samples/export?lang=zh` | 按语言导出全部样品（GET）或勾选样品（POST `sample_ids`）为 CSV（`lang=zh` 或 `lang=en`） |
+| GET, POST | `/api/samples/export_pptx?lang=zh` | 按语言导出全部样品（GET）或勾选样品（POST `sample_ids`）为 PPTX（`lang=zh` 或 `lang=en`） |
 | GET | `/api/samples/<id>/export_word?lang=zh`| 按语言导出样品为 Word（`lang=zh` 或 `lang=en`） |
 | POST | `/api/samples/<id>/photos` | 上传照片 |
 | POST | `/api/samples/<id>/xrd` | 上传 XRD 图片 |

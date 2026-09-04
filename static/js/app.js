@@ -16,6 +16,7 @@ const translations = {
     zh: {
         title: "晶体材料样品管理系统",
         nav: { sampleList: "样品列表", logoutTitle: "退出登录", logout: "🔒 退出", exportTitle: "导出样品数据", export: "导出", exportPptxTitle: "导出 PPTX", exportPptx: "导出 PPTX" },
+        exportSelection: { title: "选择要导出的样品", close: "关闭", selectAll: "全选", clearAll: "取消全选", selectedCount: "已选择 {0} 个样品", cancel: "取消", confirm: "导出" },
         sidebar: { searchPlaceholder: "搜索样品编号、产物、备注...", clearSearch: "清除搜索", newSample: "新建样品" },
         main: { emptyStateTitle: "选择或新建一个样品", emptyStateDesc: "从左侧列表选择一个样品查看详情，或点击「新建样品」开始记录" },
         form: {
@@ -53,6 +54,7 @@ const translations = {
             aiBtn: "🤖 AI 识别", delBtn: "× 删除",
             todoSynced: "已同步到 Microsoft To Do", todoSyncFailed: "To Do 同步失败: {0}",
             exportSuccess: "导出成功", exportFailed: "导出失败",
+            exportSelectionLoading: "正在加载样品列表...", exportSelectionLoadFailed: "加载样品列表失败", exportSelectionEmpty: "请至少选择一个样品",
             sortByDate: "按时间排序", sortManual: "手动排序", reorderSaved: "排序已保存", reorderFailed: "保存排序失败",
             editOrder: "✏️ 编辑顺序", doneOrder: "✅ 完成排序"
         },
@@ -61,6 +63,7 @@ const translations = {
     en: {
         title: "Crystal Sample Management",
         nav: { sampleList: "Sample List", logoutTitle: "Logout", logout: "🔒 Logout", exportTitle: "Export Sample Data", export: "Export", exportPptxTitle: "Export PPTX", exportPptx: "Export PPTX" },
+        exportSelection: { title: "Select Samples to Export", close: "Close", selectAll: "Select All", clearAll: "Clear All", selectedCount: "{0} samples selected", cancel: "Cancel", confirm: "Export" },
         sidebar: { searchPlaceholder: "Search ID, product, notes...", clearSearch: "Clear", newSample: "New Sample" },
         main: { emptyStateTitle: "Select or Create a Sample", emptyStateDesc: "Select a sample from the list to view details, or click 'New Sample'." },
         form: {
@@ -98,6 +101,7 @@ const translations = {
             aiBtn: "🤖 AI Recognize", delBtn: "× Delete",
             todoSynced: "Synced to Microsoft To Do", todoSyncFailed: "To Do sync failed: {0}",
             exportSuccess: "Export successful", exportFailed: "Export failed",
+            exportSelectionLoading: "Loading sample list...", exportSelectionLoadFailed: "Failed to load sample list", exportSelectionEmpty: "Select at least one sample",
             sortByDate: "Sort by Date", sortManual: "Manual Sort", reorderSaved: "Sort order saved", reorderFailed: "Failed to save sort order",
             editOrder: "✏️ Edit Order", doneOrder: "✅ Done"
         },
@@ -106,6 +110,8 @@ const translations = {
 };
 
 let currentLang = localStorage.getItem('crystal_lang') || 'zh'; // 默认中文
+let pendingExportFormat = null;
+let exportSelectionSamples = [];
 
 function t(path, ...args) {
     let result = path.split('.').reduce((obj, key) => (obj && obj[key] !== undefined) ? obj[key] : null, translations[currentLang]);
@@ -163,6 +169,7 @@ function updateI18n() {
 
     updateResultsLanguageUI();
     updateGrowthLanguageUI();
+    updateExportSelectionCount();
 }
 
 function updateResultsLanguageUI() {
@@ -203,6 +210,14 @@ const cancelBtn = document.getElementById('cancelBtn');
 const deleteBtn = document.getElementById('deleteBtn');
 const copyBtn = document.getElementById('copyBtn');
 const exportWordBtn = document.getElementById('exportWordBtn');
+const exportSelectionModal = document.getElementById('exportSelectionModal');
+const exportSelectionList = document.getElementById('exportSelectionList');
+const exportSelectionCount = document.getElementById('exportSelectionCount');
+const exportSelectionSelectAllBtn = document.getElementById('exportSelectionSelectAllBtn');
+const exportSelectionClearAllBtn = document.getElementById('exportSelectionClearAllBtn');
+const exportSelectionCloseBtn = document.getElementById('exportSelectionCloseBtn');
+const exportSelectionCancelBtn = document.getElementById('exportSelectionCancelBtn');
+const exportSelectionConfirmBtn = document.getElementById('exportSelectionConfirmBtn');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const formTitle = document.getElementById('formTitle');
@@ -385,6 +400,29 @@ function bindEvents() {
         exportWordBtn.addEventListener('click', () => {
             if (!currentSampleId) return;
             window.location.href = `/api/samples/${encodeURIComponent(currentSampleId)}/export_word?lang=${currentLang}`;
+        });
+    }
+    if (exportSelectionSelectAllBtn) {
+        exportSelectionSelectAllBtn.addEventListener('click', () => setExportSelectionChecked(true));
+    }
+    if (exportSelectionClearAllBtn) {
+        exportSelectionClearAllBtn.addEventListener('click', () => setExportSelectionChecked(false));
+    }
+    if (exportSelectionCloseBtn) {
+        exportSelectionCloseBtn.addEventListener('click', closeExportSelection);
+    }
+    if (exportSelectionCancelBtn) {
+        exportSelectionCancelBtn.addEventListener('click', closeExportSelection);
+    }
+    if (exportSelectionConfirmBtn) {
+        exportSelectionConfirmBtn.addEventListener('click', () => confirmExportSelection());
+    }
+    if (exportSelectionModal) {
+        exportSelectionModal.addEventListener('click', (event) => {
+            if (event.target === exportSelectionModal) closeExportSelection();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !exportSelectionModal.hidden) closeExportSelection();
         });
     }
     prevBtn.addEventListener('click', () => navigateSample(1));   // 上一页：往列表后面走（旧数据）
@@ -1957,52 +1995,145 @@ window.logout = logout;
 // ============================================================
 // Export Samples
 // ============================================================
-async function exportSamples() {
+function getExportStatusLabel(status) {
+    const statusKeys = { 0: 'fail', 1: 'success', 2: 'pending', 3: 'growing', 4: 'done' };
+    let normalized = Number(status);
+    if (!Number.isInteger(normalized) || !statusKeys[normalized]) normalized = 2;
+    return t(`form.status.${statusKeys[normalized]}`);
+}
+
+function updateExportSelectionCount() {
+    if (!exportSelectionCount || !exportSelectionList) return;
+    const selectedCount = exportSelectionList.querySelectorAll('input[type="checkbox"]:checked').length;
+    exportSelectionCount.textContent = t('exportSelection.selectedCount', selectedCount);
+}
+
+function renderExportSelectionSamples(samples) {
+    if (!exportSelectionList) return;
+    exportSelectionList.replaceChildren();
+    if (samples.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'export-selection-empty';
+        empty.textContent = t('messages.noSamples');
+        exportSelectionList.appendChild(empty);
+        updateExportSelectionCount();
+        return;
+    }
+
+    samples.forEach(sample => {
+        const item = document.createElement('label');
+        item.className = 'export-selection-item';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = sample.id || '';
+        checkbox.checked = true;
+        checkbox.addEventListener('change', updateExportSelectionCount);
+
+        const info = document.createElement('span');
+        info.className = 'export-selection-item-info';
+        const id = document.createElement('span');
+        id.className = 'export-selection-item-id';
+        id.textContent = sample.id || '';
+        const meta = document.createElement('span');
+        meta.className = 'export-selection-item-meta';
+        meta.textContent = `${sample.target_product || '—'} · ${getExportStatusLabel(sample.is_successful)}`;
+        info.append(id, meta);
+
+        item.append(checkbox, info);
+        exportSelectionList.appendChild(item);
+    });
+    updateExportSelectionCount();
+}
+
+function setExportSelectionChecked(checked) {
+    if (!exportSelectionList) return;
+    exportSelectionList.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = checked;
+    });
+    updateExportSelectionCount();
+}
+
+function closeExportSelection() {
+    if (exportSelectionModal) exportSelectionModal.hidden = true;
+    pendingExportFormat = null;
+    exportSelectionSamples = [];
+}
+
+async function openExportSelection(format) {
+    if (!exportSelectionModal || !exportSelectionList) return;
+    pendingExportFormat = format === 'pptx' ? 'pptx' : 'csv';
+    exportSelectionModal.hidden = false;
+    exportSelectionList.textContent = t('messages.exportSelectionLoading');
+    if (exportSelectionConfirmBtn) exportSelectionConfirmBtn.disabled = true;
+
     try {
-        const response = await fetch(`/api/samples/export?lang=${currentLang}`);
-        if (!response.ok) {
-            showToast(t('messages.exportFailed'), 'error');
-            return;
-        }
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `samples_export_${new Date().toISOString().slice(0, 10)}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        const response = await fetch('/api/samples');
+        if (!response.ok) throw new Error('sample list request failed');
+        const samples = await response.json();
+        if (!Array.isArray(samples)) throw new Error('invalid sample list');
+        exportSelectionSamples = samples;
+        renderExportSelectionSamples(samples);
+    } catch (e) {
+        closeExportSelection();
+        showToast(t('messages.exportSelectionLoadFailed'), 'error');
+    } finally {
+        if (exportSelectionConfirmBtn) exportSelectionConfirmBtn.disabled = false;
+    }
+}
+
+async function downloadSelectedExport(format, sampleIds) {
+    const endpoint = format === 'pptx'
+        ? `/api/samples/export_pptx?lang=${currentLang}`
+        : `/api/samples/export?lang=${currentLang}`;
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sample_ids: sampleIds })
+    });
+    if (!response.ok) throw new Error('selected export request failed');
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `samples_export_${currentLang}_${new Date().toISOString().slice(0, 10)}.${format === 'pptx' ? 'pptx' : 'csv'}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+async function confirmExportSelection() {
+    if (!exportSelectionList || !pendingExportFormat) return;
+    const sampleIds = Array.from(
+        exportSelectionList.querySelectorAll('input[type="checkbox"]:checked')
+    ).map(checkbox => checkbox.value);
+    if (sampleIds.length === 0) {
+        showToast(t('messages.exportSelectionEmpty'), 'warning');
+        return;
+    }
+
+    if (exportSelectionConfirmBtn) exportSelectionConfirmBtn.disabled = true;
+    try {
+        await downloadSelectedExport(pendingExportFormat, sampleIds);
+        closeExportSelection();
         showToast(t('messages.exportSuccess'), 'success');
     } catch (e) {
-        console.error('导出失败', e);
         showToast(t('messages.exportFailed'), 'error');
+    } finally {
+        if (exportSelectionConfirmBtn) exportSelectionConfirmBtn.disabled = false;
     }
+}
+
+function exportSamples() {
+    openExportSelection('csv');
 }
 
 window.exportSamples = exportSamples;
 
-async function exportSamplesPptx() {
-    try {
-        const response = await fetch(`/api/samples/export_pptx?lang=${currentLang}`);
-        if (!response.ok) {
-            showToast(t('messages.exportFailed'), 'error');
-            return;
-        }
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `samples_export_${currentLang}_${new Date().toISOString().slice(0, 10)}.pptx`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        showToast(t('messages.exportSuccess'), 'success');
-    } catch (e) {
-        console.error('PPTX 导出失败', e);
-        showToast(t('messages.exportFailed'), 'error');
-    }
+function exportSamplesPptx() {
+    openExportSelection('pptx');
 }
 
 window.exportSamplesPptx = exportSamplesPptx;

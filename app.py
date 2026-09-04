@@ -855,11 +855,37 @@ def _format_export_growth_method(sample, lang):
     return '\n'.join(parts)
 
 
-@app.route('/api/samples/export', methods=['GET'])
+def _get_requested_export_samples(lang):
+    """返回总导出样品，GET 全部、POST 按 sample_ids 选择。"""
+    all_samples = models.get_all_samples()
+    if request.method == 'GET':
+        return all_samples, None
+
+    payload = request.get_json(silent=True)
+    sample_ids = payload.get('sample_ids') if isinstance(payload, dict) else None
+    invalid_message = '样品选择无效' if lang == 'zh' else 'Invalid sample selection'
+    if (
+        not isinstance(sample_ids, list)
+        or not sample_ids
+        or any(not isinstance(sample_id, str) or not sample_id.strip() for sample_id in sample_ids)
+    ):
+        return None, (jsonify({'error': invalid_message}), 400)
+
+    unique_ids = list(dict.fromkeys(sample_ids))
+    samples_by_id = {sample.get('id'): sample for sample in all_samples}
+    if any(sample_id not in samples_by_id for sample_id in unique_ids):
+        return None, (jsonify({'error': invalid_message}), 400)
+
+    return [samples_by_id[sample_id] for sample_id in unique_ids], None
+
+
+@app.route('/api/samples/export', methods=['GET', 'POST'])
 def export_samples():
     """导出所有样品为 CSV 格式"""
     lang = request.args.get('lang', 'zh')
-    samples = models.get_all_samples()
+    samples, error = _get_requested_export_samples(lang)
+    if error:
+        return error
 
     output = StringIO()
     writer = csv.writer(output)
@@ -892,7 +918,7 @@ def export_samples():
     return response
 
 
-@app.route('/api/samples/export_pptx', methods=['GET'])
+@app.route('/api/samples/export_pptx', methods=['GET', 'POST'])
 def export_samples_pptx():
     """导出所有样品为按样品分页的 PowerPoint 文档"""
     lang = 'en' if request.args.get('lang') == 'en' else 'zh'
@@ -911,7 +937,10 @@ def export_samples_pptx():
         )
         return jsonify({'error': message}), 500
 
-    samples = models.get_all_samples()
+    samples, error = _get_requested_export_samples(lang)
+    if error:
+        return error
+
     presentation = Presentation()
     presentation.slide_width = Inches(13.333)
     presentation.slide_height = Inches(7.5)
