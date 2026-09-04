@@ -17,6 +17,8 @@ A local web application designed to manage all information regarding samples obt
 - **Microsoft To Do Integration** — Bind your Microsoft account to automatically sync sintering end times directly to To Do for robust cross-device reminders.
 - **Global Timezone Configuration** — Independent timezone setting decoupled from server location to ensure consistent time synchronization between frontend and database.
 - **Bilingual & Responsive UI** — Seamless dynamic i18n switching (EN/ZH); deep layout and touch optimizations for mobile and tablet, plus a widescreen fullscreen mode.
+- **Bilingual Results & Manual Translation** — Chinese and English results are stored separately: the legacy `results` field stores Chinese, while the new `results_en` field stores English. Existing data is not batch-translated automatically. The Chinese UI button is `en to cn`, and the English UI button is `cn to en`. Translation uses `POST /api/results/translate`, directly reusing the same OpenAI-compatible API, client, and configuration as EDX image recognition. It updates only the current form draft; use manual save by clicking Save/保存, with no auto-save to the database.
+- **Language-Specific Word/CSV Export** — Word and CSV exports use the `lang` value to select the corresponding saved result column (`zh` → `results`, `en` → `results_en`) and never fall back across languages. Unsaved drafts are not included in exported files.
 - **Auto Backup** — Immediate automatic backup on startup + scheduled incremental hot backups (daily) + full compressed zip backups (weekly), alongside a comprehensive CLI restoration utility.
 
 ## Tech Stack
@@ -115,12 +117,13 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 | PUT | `/api/samples/<id>` | Update sample |
 | DELETE | `/api/samples/<id>` | Delete sample |
 | POST | `/api/samples/reorder` | Update sample sorting order |
-| GET | `/api/samples/export` | Export all samples to CSV |
-| GET | `/api/samples/<id>/export_word`| Export sample to Word |
+| GET | `/api/samples/export?lang=zh` | Export all samples to language-specific CSV (`lang=zh` or `lang=en`) |
+| GET | `/api/samples/<id>/export_word?lang=zh`| Export sample to language-specific Word (`lang=zh` or `lang=en`) |
 | POST | `/api/samples/<id>/photos` | Upload photos |
 | POST | `/api/samples/<id>/xrd` | Upload XRD images |
 | POST | `/api/samples/<id>/edx` | Upload EDX images |
 | POST | `/api/edx/<id>/recognize` | AI EDX Recognition |
+| POST | `/api/results/translate` | Translate the current result draft between Chinese and English (does not save it) |
 | POST | `/api/edx/reorder` | Update EDX images order |
 | POST | `/api/samples/<id>/datafiles` | Upload data files |
 | POST | `/api/samples/<id>/otherfiles`| Upload other files |
