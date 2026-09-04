@@ -38,39 +38,45 @@ def _db_snapshot():
     return sha256(repr([tuple(row) for row in rows]).encode("utf-8")).hexdigest()
 
 
-def test_post_csv_exports_only_selected_samples_in_requested_order(client):
-    models.create_sample(_sample("sample-A"))
-    models.create_sample(_sample("sample-B"))
-    models.create_sample(_sample("sample-C"))
+def test_post_csv_exports_only_selected_samples_in_reverse_current_order(client):
+    models.create_sample(_sample("sample-A", sintering_start="2024-01-01T00:00"))
+    models.create_sample(_sample("sample-B", sintering_start="2024-01-02T00:00"))
+    models.create_sample(_sample("sample-C", sintering_start="2024-01-03T00:00"))
+    current_order = [sample["id"] for sample in models.get_all_samples()]
+    selected_ids = current_order[:2]
 
     response = client.post(
         "/api/samples/export?lang=zh",
-        json={"sample_ids": ["sample-B", "sample-A"]},
+        json={"sample_ids": selected_ids},
     )
 
     assert response.status_code == 200
     rows = _csv_rows(response)
-    assert [row[0] for row in rows[1:]] == ["sample-B", "sample-A"]
+    assert [row[0] for row in rows[1:]] == list(reversed(selected_ids))
     assert len(rows) == 3
 
 
-def test_post_pptx_exports_only_selected_samples_in_requested_order(client):
-    models.create_sample(_sample("sample-A"))
-    models.create_sample(_sample("sample-B"))
-    models.create_sample(_sample("sample-C"))
+def test_post_pptx_exports_only_selected_samples_in_reverse_current_order(client):
+    models.create_sample(_sample("sample-A", sintering_start="2024-01-01T00:00"))
+    models.create_sample(_sample("sample-B", sintering_start="2024-01-02T00:00"))
+    models.create_sample(_sample("sample-C", sintering_start="2024-01-03T00:00"))
+    current_order = models.get_all_samples()
+    selected_samples = current_order[:2]
+    selected_ids = [sample["id"] for sample in selected_samples]
 
     response = client.post(
         "/api/samples/export_pptx?lang=en",
-        json={"sample_ids": ["sample-B", "sample-A"]},
+        json={"sample_ids": selected_ids},
     )
 
     assert response.status_code == 200
     presentation = Presentation(BytesIO(response.data))
     assert len(presentation.slides) == 3
-    assert [slide.shapes[0].text for slide in list(presentation.slides)[1:]] == [
-        "sample-B-Target-sample-B-Success",
-        "sample-A-Target-sample-A-Success",
+    expected_titles = [
+        f"{sample['id']}-{sample.get('target_product') or ''}-Success"
+        for sample in reversed(selected_samples)
     ]
+    assert [slide.shapes[0].text for slide in list(presentation.slides)[1:]] == expected_titles
 
 
 def test_selected_exports_keep_language_specific_fields(client):
@@ -105,10 +111,12 @@ def test_selected_exports_keep_language_specific_fields(client):
     assert "Chinese growth only" not in en_row
 
 
-def test_get_exports_remain_all_samples_for_backward_compatibility(client):
-    models.create_sample(_sample("sample-A"))
-    models.create_sample(_sample("sample-B"))
-    models.create_sample(_sample("sample-C"))
+def test_get_exports_reverse_current_order_for_all_samples(client):
+    models.create_sample(_sample("sample-A", sintering_start="2024-01-01T00:00"))
+    models.create_sample(_sample("sample-B", sintering_start="2024-01-02T00:00"))
+    models.create_sample(_sample("sample-C", sintering_start="2024-01-03T00:00"))
+    current_order = models.get_all_samples()
+    expected_ids = [sample["id"] for sample in reversed(current_order)]
 
     csv_response = client.get("/api/samples/export?lang=zh")
     pptx_response = client.get("/api/samples/export_pptx?lang=en")
@@ -117,9 +125,17 @@ def test_get_exports_remain_all_samples_for_backward_compatibility(client):
     assert len(_csv_rows(csv_response)) == 4
     assert pptx_response.status_code == 200
     assert len(Presentation(BytesIO(pptx_response.data)).slides) == 4
+    assert [row[0] for row in _csv_rows(csv_response)[1:]] == expected_ids
+    sample_by_id = {sample["id"]: sample for sample in current_order}
+    expected_titles = [
+        f"{sample_by_id[sample_id]['id']}-{sample_by_id[sample_id].get('target_product') or ''}-Success"
+        for sample_id in expected_ids
+    ]
+    presentation = Presentation(BytesIO(pptx_response.data))
+    assert [slide.shapes[0].text for slide in list(presentation.slides)[1:]] == expected_titles
 
 
-def test_duplicate_selected_ids_are_deduplicated_in_first_seen_order(client):
+def test_duplicate_selected_ids_are_deduplicated_for_reverse_current_order(client):
     models.create_sample(_sample("sample-A"))
     models.create_sample(_sample("sample-B"))
 

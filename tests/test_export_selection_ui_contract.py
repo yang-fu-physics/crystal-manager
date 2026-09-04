@@ -75,6 +75,12 @@ def test_empty_selection_does_not_send_export_request_and_dialog_can_close():
     assert "key === 'Escape'" in JS or 'event.key === \'Escape\'' in JS
 
 
+def test_selection_dialog_keeps_current_sample_order():
+    assert "const oldestFirstSamples = samples.slice().reverse();" not in JS
+    assert "exportSelectionSamples = samples;" in JS
+    assert "renderExportSelectionSamples(samples);" in JS
+
+
 def test_selection_requests_cannot_close_or_overwrite_a_new_dialog():
     assert "let exportSelectionBusy = false;" in JS
     assert "let exportSelectionRequestId = 0;" in JS

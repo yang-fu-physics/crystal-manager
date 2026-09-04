@@ -856,8 +856,9 @@ def _format_export_growth_method(sample, lang):
 
 
 def _get_requested_export_samples(lang):
-    """返回总导出样品，GET 全部、POST 按 sample_ids 选择。"""
-    all_samples = models.get_all_samples()
+    """返回总导出样品，使用当前样品列表顺序的倒序。"""
+    # get_all_samples() 是当前默认样品列表顺序；导出只做列表反转，不重新按时间字段排序。
+    all_samples = list(reversed(models.get_all_samples()))
     if request.method == 'GET':
         return all_samples, None
 
@@ -876,7 +877,8 @@ def _get_requested_export_samples(lang):
     if any(sample_id not in samples_by_id for sample_id in unique_ids):
         return None, (jsonify({'error': invalid_message}), 400)
 
-    return [samples_by_id[sample_id] for sample_id in unique_ids], None
+    selected_ids = set(unique_ids)
+    return [sample for sample in all_samples if sample.get('id') in selected_ids], None
 
 
 @app.route('/api/samples/export', methods=['GET', 'POST'])
