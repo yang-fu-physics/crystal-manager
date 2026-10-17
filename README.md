@@ -4,6 +4,22 @@
 
 A local web application designed to manage all information regarding samples obtained from crystal growth experiments.
 
+## Screenshots
+
+Screenshots from a local instance using illustrative demo data.
+
+### Sample Overview
+
+Full-screen sample list with search, status indicators, and measurement badges (Chinese UI).
+
+![Sample overview showing six demo samples with status indicators and measurement badges](docs/screenshots/sample-overview-zh.jpg)
+
+### Element Ratios & Mass Calculation
+
+Enter molar ratios and a reference element's mass to calculate the required masses of the other elements.
+
+![Mass calculator showing Fe and Se molar ratios, molar masses, and calculated weighing masses](docs/screenshots/mass-calculation-en.jpg)
+
 ## Features
 
 - **Sample Management** — Create, view, edit, delete, search, and manually sort samples via drag-and-drop.
