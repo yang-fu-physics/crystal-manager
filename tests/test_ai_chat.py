@@ -9,6 +9,7 @@ import pytest
 
 import ai_chat
 import models
+import todo_integration
 from conftest import test_config
 
 
@@ -234,3 +235,163 @@ def test_chat_and_confirmation_require_login(app):
     with app.test_client() as guest:
         assert guest.post('/api/chat', json={}).status_code == 401
         assert guest.post('/api/chat/confirm', json={}).status_code == 401
+        assert guest.post('/api/chat/undo', json={}).status_code == 401
+
+
+def test_undo_update_restores_original_fields_and_keeps_new_attachments(client, install_ai, tmp_path):
+    before = models.create_sample({
+        'id': 'TEST-001', 'status': 1, 'target_product': 'FeSe', 'has_electric': 1,
+        'growth_process': '原始流程', 'growth_process_en': 'Original process',
+        'notes': 'keep', 'results': '原始结果', 'results_en': 'Original results',
+        'sintering_start': '2026-10-18T08:30', 'sintering_duration': 24,
+        'sintering_end': '2026-10-19 08:30',
+        'element_ratios': [{'element': 'Fe', 'ratio': 1, 'is_reference': True},
+                           {'element': 'Se', 'ratio': 1, 'is_reference': False}],
+        'actual_masses': [{'element': 'Fe', 'mass': .5}, {'element': 'Se', 'mass': .7071}],
+    })
+    proposal, _ = propose(client, install_ai, {
+        'growth_process': '新的保温流程', 'sintering_duration': 72,
+        'element_ratios': [{'element': 'Fe', 'ratio': 1, 'is_reference': True},
+                           {'element': 'Se', 'ratio': 2, 'is_reference': False}],
+    })
+    saved = client.post('/api/chat/confirm', json={'token': proposal['token']}).get_json()
+    photo = tmp_path / 'new-photo.jpg'
+    photo.write_bytes(b'keep attachment')
+    models.add_photo('TEST-001', photo.name, str(photo))
+    attachments = models.get_sample('TEST-001')['photos']
+    result = client.post('/api/chat/undo', json={'token': saved['undo_token']})
+    assert result.status_code == 200, result.get_json()
+    restored = models.get_sample('TEST-001')
+    assert ai_chat.sample_record(restored) == ai_chat.sample_record(before)
+    assert restored['created_at'] == before['created_at']
+    assert restored['photos'] == attachments
+    assert photo.read_bytes() == b'keep attachment'
+    assert client.post('/api/chat/undo', json={'token': saved['undo_token']}).status_code == 409
+
+
+def test_undo_create_removes_only_the_created_sample(client, install_ai):
+    models.create_sample({'id': 'KEEP', 'notes': 'keep'})
+    proposal, _ = propose(client, install_ai, {'target_product': 'FeSe'}, operation='create')
+    saved = client.post('/api/chat/confirm', json={'token': proposal['token']}).get_json()
+    result = client.post('/api/chat/undo', json={'token': saved['undo_token']})
+    assert result.status_code == 200
+    assert result.get_json()['deleted'] is True
+    assert models.get_sample('TEST-001') is None
+    assert models.get_sample('KEEP')['notes'] == 'keep'
+    assert client.post('/api/chat/undo', json={'token': saved['undo_token']}).status_code == 409
+
+
+@pytest.mark.parametrize('operation', ['create', 'update'])
+def test_undo_cannot_overwrite_later_manual_changes(client, install_ai, operation):
+    if operation == 'update':
+        models.create_sample({'id': 'TEST-001', 'notes': 'old'})
+    proposal, _ = propose(client, install_ai, {'notes': 'AI edit'}, operation=operation)
+    saved = client.post('/api/chat/confirm', json={'token': proposal['token']}).get_json()
+    models.update_sample('TEST-001', {'notes': 'later manual edit'})
+    assert client.post('/api/chat/undo', json={'token': saved['undo_token']}).status_code == 409
+    assert models.get_sample('TEST-001')['notes'] == 'later manual edit'
+
+
+@pytest.mark.parametrize('table', ['photos', 'edx_images', 'xrd_images', 'data_files', 'other_files'])
+def test_undo_create_never_deletes_added_attachments(client, install_ai, tmp_path, table):
+    proposal, _ = propose(client, install_ai, {'notes': 'created'}, operation='create')
+    saved = client.post('/api/chat/confirm', json={'token': proposal['token']}).get_json()
+    attachment = tmp_path / 'attachment.dat'
+    attachment.write_bytes(b'keep')
+    conn = models.get_db()
+    try:
+        conn.execute(f'INSERT INTO {table} (sample_id, filename, filepath) VALUES (?, ?, ?)',
+                     ('TEST-001', attachment.name, str(attachment)))
+        conn.commit()
+    finally:
+        conn.close()
+    result = client.post('/api/chat/undo', json={'token': saved['undo_token']})
+    assert result.status_code == 409
+    assert '附件' in result.get_json()['error']
+    assert models.get_sample('TEST-001')[table]
+    assert attachment.read_bytes() == b'keep'
+
+
+def test_undo_create_checks_snapshot_inside_delete_transaction(client):
+    before = models.create_sample({'id': 'TEST-001', 'notes': 'old'})
+    models.update_sample('TEST-001', {'notes': 'concurrent edit'})
+    with pytest.raises(models.SampleChangedError):
+        models.delete_sample('TEST-001', expected_sample=before)
+    assert models.get_sample('TEST-001')['notes'] == 'concurrent edit'
+
+
+def test_undo_tokens_are_signed_session_bound_and_distinct_from_proposals(client, app, install_ai, monkeypatch):
+    proposal, _ = propose(client, install_ai, {'notes': 'created'}, operation='create')
+    saved = client.post('/api/chat/confirm', json={'token': proposal['token']}).get_json()
+    undo = saved['undo_token']
+    assert client.post('/api/chat/undo', json={'token': undo + 'x'}).status_code == 400
+    assert client.post('/api/chat/undo', json={'token': proposal['token']}).status_code == 400
+    assert client.post('/api/chat/confirm', json={'token': undo}).status_code == 400
+    with app.test_client() as other:
+        with other.session_transaction() as session:
+            session['logged_in'] = True
+        assert other.post('/api/chat/undo', json={'token': undo}).status_code == 400
+    timestamp = ai_chat.signer().make_signer().get_timestamp()
+    monkeypatch.setattr('itsdangerous.timed.TimestampSigner.get_timestamp', lambda self: timestamp + 1801)
+    assert client.post('/api/chat/undo', json={'token': undo}).status_code == 400
+    assert models.get_sample('TEST-001')['notes'] == 'created'
+
+
+@pytest.mark.parametrize('payload', [None, [], {}, {'token': 1}])
+def test_invalid_undo_request_does_not_write(client, payload):
+    models.create_sample({'id': 'TEST-001', 'notes': 'keep'})
+    assert client.post('/api/chat/undo', json=payload).status_code == 400
+    assert models.get_sample('TEST-001')['notes'] == 'keep'
+
+
+def test_undo_schedule_resyncs_original_todo_time(client, install_ai, monkeypatch):
+    calls = []
+    monkeypatch.setattr(todo_integration, 'create_or_update_todo',
+                        lambda sample_id, end, db, product: (calls.append(end) or True, 'synced'))
+    models.create_sample({'id': 'TEST-001', 'sintering_start': '2026-10-18T08:30',
+                          'sintering_duration': 24, 'sintering_end': '2026-10-19 08:30'})
+    proposal, _ = propose(client, install_ai, {'sintering_duration': 72})
+    saved = client.post('/api/chat/confirm', json={'token': proposal['token']}).get_json()
+    result = client.post('/api/chat/undo', json={'token': saved['undo_token']})
+    assert result.status_code == 200
+    assert calls == ['2026-10-21 08:30', '2026-10-19 08:30']
+
+
+@pytest.mark.parametrize('operation', ['create', 'update'])
+def test_undo_removes_new_todo_reminder(client, install_ai, monkeypatch, operation):
+    if operation == 'update':
+        models.create_sample({'id': 'TEST-001'})
+    proposal, _ = propose(client, install_ai, {
+        'sintering_start': '2026-10-18T08:30', 'sintering_duration': 24,
+    }, operation=operation)
+    saved = client.post('/api/chat/confirm', json={'token': proposal['token']}).get_json()
+    models.upsert_todo_task('TEST-001', 'task-1', saved['sintering_end'])
+    monkeypatch.setattr(todo_integration, 'is_connected', lambda: True)
+    monkeypatch.setattr(todo_integration, 'get_access_token', lambda: 'test-token')
+    monkeypatch.setattr(todo_integration, '_get_default_task_list_id', lambda token: 'list-1')
+    calls = []
+    monkeypatch.setattr(todo_integration, 'delete_todo_task', lambda *args: calls.append(args))
+    result = client.post('/api/chat/undo', json={'token': saved['undo_token']})
+    assert result.status_code == 200
+    assert result.get_json()['todo_synced'] is True
+    assert calls == [('test-token', 'list-1', 'task-1')]
+    assert models.get_todo_task('TEST-001') is None
+
+
+def test_undo_reports_todo_failure_after_restoring_sample(client, install_ai, monkeypatch):
+    proposal, _ = propose(client, install_ai, {'notes': 'created'}, operation='create')
+    saved = client.post('/api/chat/confirm', json={'token': proposal['token']}).get_json()
+    models.upsert_todo_task('TEST-001', 'task-1', '2026-10-19 08:30')
+    monkeypatch.setattr(todo_integration, 'is_connected', lambda: True)
+    monkeypatch.setattr(todo_integration, 'get_access_token', lambda: 'test-token')
+
+    def fail(token):
+        raise todo_integration.http_requests.exceptions.ConnectionError('network unavailable')
+
+    monkeypatch.setattr(todo_integration, '_get_default_task_list_id', fail)
+    result = client.post('/api/chat/undo', json={'token': saved['undo_token']})
+    assert result.status_code == 200
+    assert result.get_json()['todo_synced'] is False
+    assert '取消 To Do 提醒失败' in result.get_json()['todo_msg']
+    assert models.get_sample('TEST-001') is None
+    assert models.get_todo_task('TEST-001')['task_id'] == 'task-1'

@@ -84,8 +84,8 @@ def fingerprint(sample):
     return hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
-def signer():
-    return URLSafeTimedSerializer(current_app.secret_key, salt='crystal-chat-proposal')
+def signer(salt='crystal-chat-proposal'):
+    return URLSafeTimedSerializer(current_app.secret_key, salt=salt)
 
 
 def positive_number(value, maximum):
@@ -191,6 +191,28 @@ def confirmed_change(token):
     if fingerprint(current) != proposal['version']:
         raise Conflict('样品已发生变化，请读取最新数据后重新生成方案')
     return proposal, current
+
+
+def undo_token(before, after):
+    return signer('crystal-chat-undo').dumps({
+        'sample_id': after['id'], 'before': sample_record(before) if before else None,
+        'version': fingerprint(after), 'operator': session['chat_operator'],
+    })
+
+
+def confirmed_undo(token):
+    if not isinstance(token, str):
+        raise BadRequest('缺少撤销凭据')
+    try:
+        receipt = signer('crystal-chat-undo').loads(token, max_age=1800)
+    except BadSignature as exc:
+        raise BadRequest('撤销凭据已过期或被修改') from exc
+    if receipt['operator'] != session.get('chat_operator'):
+        raise BadRequest('请在保存方案的登录会话中撤销')
+    current = models.get_sample(receipt['sample_id'])
+    if fingerprint(current) != receipt['version']:
+        raise Conflict('样品已发生变化或已经撤销，不能撤销这次保存')
+    return receipt, current
 
 
 def chat(data):

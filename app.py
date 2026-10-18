@@ -333,8 +333,38 @@ def confirm_sample_chat():
     proposal, current = ai_chat.confirmed_change(data.get('token'))
     values = {'id': proposal['sample_id'], **proposal['changes']}
     if proposal['operation'] == 'create':
-        return _create_sample(values)
-    return _update_sample(proposal['sample_id'], {**ai_chat.sample_record(current), **values}, expected_sample=current)
+        response = app.make_response(_create_sample(values))
+    else:
+        response = app.make_response(_update_sample(
+            proposal['sample_id'], {**ai_chat.sample_record(current), **values}, expected_sample=current))
+    if response.status_code >= 400:
+        return response
+    result = response.get_json()
+    result['undo_token'] = ai_chat.undo_token(current, result)
+    return jsonify(result), response.status_code
+
+
+@app.route('/api/chat/undo', methods=['POST'])
+def undo_sample_chat():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': '缺少撤销凭据'}), 400
+    receipt, current = ai_chat.confirmed_undo(data.get('token'))
+    if receipt['before'] is None:
+        try:
+            models.delete_sample(receipt['sample_id'], expected_sample=current)
+        except models.SampleChangedError as exc:
+            return jsonify({'error': str(exc)}), 409
+        result = {'deleted': True, 'sample_id': receipt['sample_id']}
+    else:
+        response = app.make_response(_update_sample(
+            receipt['sample_id'], receipt['before'], expected_sample=current))
+        if response.status_code >= 400:
+            return response
+        result = response.get_json()
+    if receipt['before'] is None or (not receipt['before']['sintering_end'] and current['sintering_end']):
+        result['todo_synced'], result['todo_msg'] = todo_integration.remove_sample_todo(receipt['sample_id'], models)
+    return jsonify(result)
 
 
 @app.route('/api/samples/<sample_id>', methods=['DELETE'])

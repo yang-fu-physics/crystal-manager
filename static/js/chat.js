@@ -12,7 +12,11 @@ const chatCopy = {
         create: '待确认：新建样品 ', update: '待确认：修改样品 ', before: '修改前', after: '修改后',
         confirm: '确认保存', cancel: '取消', pending: '尚未保存 · 方案 30 分钟内有效',
         cancelled: '已取消，未保存。', replaced: '已由后续消息替代，未保存。',
-        saved: '已保存。样品列表已刷新，当前表单草稿保留。重新点击样品可查看已保存数据。',
+        saved: '已保存，30 分钟内可撤销。样品列表已刷新，当前表单草稿保留。重新点击样品可查看已保存数据。',
+        undo: '撤销本次保存', confirmUndo: '确认撤销', keep: '保留变更', undoing: '正在撤销本次保存…',
+        undoCreate: '撤销将删除刚新建的样品，请确认：', undoUpdate: '撤销将恢复本次保存前的样品内容，请确认：',
+        undone: '已撤销本次保存，样品列表已刷新。当前表单内容保留，请重新选择样品查看；已删除样品的表单转为未保存草稿。',
+        undoUncertain: '撤销状态未确认，请重新读取样品核对。',
         uncertain: '保存状态未确认，请重新读取样品核对后再操作。', failed: '请求失败，请重试。',
         full: '对话较长，请开启新对话后继续。', yes: '是', no: '否', reference: '参考',
         statuses: ['失败', '成功', '待定', '生长中', '生长完成'],
@@ -29,7 +33,11 @@ const chatCopy = {
         create: 'Confirm new sample: ', update: 'Confirm sample update: ', before: 'Before', after: 'After',
         confirm: 'Confirm save', cancel: 'Cancel', pending: 'Not saved · Proposal expires in 30 minutes',
         cancelled: 'Cancelled. Nothing saved.', replaced: 'Superseded by your next message. Nothing saved.',
-        saved: 'Saved. The sample list was refreshed; your form draft was preserved. Select the sample again to view saved data.',
+        saved: 'Saved. Undo is available for 30 minutes. The sample list was refreshed; your form draft was preserved. Select the sample again to view saved data.',
+        undo: 'Undo this save', confirmUndo: 'Confirm undo', keep: 'Keep changes', undoing: 'Undoing this save…',
+        undoCreate: 'Undo will delete the sample just created. Please confirm: ', undoUpdate: 'Undo will restore the sample to its state before this save. Please confirm: ',
+        undone: 'Save undone. The list was refreshed and your form content was preserved. Select the sample again to view saved data; a deleted sample’s form becomes an unsaved draft.',
+        undoUncertain: 'Undo status is unknown. Read the sample again to check.',
         uncertain: 'Save status is unknown. Read the sample again before making further changes.', failed: 'Request failed. Please retry.',
         full: 'This conversation is long. Start a new chat to continue.', yes: 'Yes', no: 'No', reference: 'Ref',
         statuses: ['Fail', 'Success', 'Pending', 'Growing', 'Done'],
@@ -156,9 +164,16 @@ function showChatProposal(proposal) {
     const actions = chatElement('div', 'ai-chat-proposal-actions');
     const confirm = chatElement('button', 'ai-chat-button ai-chat-primary', chatText('confirm'));
     const cancel = chatElement('button', 'ai-chat-button', chatText('cancel'));
-    confirm.type = cancel.type = 'button';
+    const undo = chatElement('button', 'ai-chat-button', chatText('undo'));
+    const keep = chatElement('button', 'ai-chat-button', chatText('keep'));
+    confirm.type = cancel.type = undo.type = keep.type = 'button';
+    undo.dataset.chatI18n = 'undo';
+    keep.dataset.chatI18n = 'keep';
+    undo.hidden = keep.hidden = true;
+    let undoToken;
+    let undoReady = false;
     const outcome = chatElement('p', 'ai-chat-outcome');
-    actions.append(confirm, cancel);
+    actions.append(confirm, cancel, undo, keep);
     card.append(actions, outcome);
     chatMessages.append(card);
     chatPending = {confirm, cancel, outcome};
@@ -179,6 +194,9 @@ function showChatProposal(proposal) {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error);
             resolveChatProposal(chatText('saved'));
+            undoToken = data.undo_token;
+            confirm.hidden = cancel.hidden = true;
+            undo.hidden = false;
             chatHistory.push({role: 'assistant', content: `${proposal.sample_id}: ${chatText('saved')}`});
             await loadSampleList(searchInput.value);
             if (data.todo_msg) appendChatMessage('assistant', data.todo_msg);
@@ -186,6 +204,54 @@ function showChatProposal(proposal) {
             const message = `${chatText('uncertain')}\n${error.message}`;
             resolveChatProposal(message);
             chatHistory.push({role: 'assistant', content: message});
+        } finally {
+            setChatBusy(false);
+            scrollChat();
+        }
+    });
+    keep.addEventListener('click', () => {
+        undoReady = false;
+        keep.hidden = true;
+        undo.dataset.chatI18n = 'undo';
+        undo.textContent = chatText('undo');
+        outcome.textContent = chatText('saved');
+    });
+    undo.addEventListener('click', async () => {
+        if (chatBusy) return;
+        if (!undoReady) {
+            undoReady = true;
+            keep.hidden = false;
+            undo.dataset.chatI18n = 'confirmUndo';
+            undo.textContent = chatText('confirmUndo');
+            outcome.textContent = chatText(proposal.operation === 'create' ? 'undoCreate' : 'undoUpdate') + proposal.sample_id;
+            scrollChat();
+            return;
+        }
+        undo.disabled = keep.disabled = true;
+        setChatBusy(true, chatText('undoing'));
+        try {
+            const response = await fetch('/api/chat/undo', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({token: undoToken}),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+            undo.hidden = keep.hidden = true;
+            outcome.textContent = chatText('undone');
+            chatHistory.push({role: 'assistant', content: `${proposal.sample_id}: ${chatText('undone')}`});
+            if (data.deleted && currentSampleId === proposal.sample_id) {
+                currentSampleId = null;
+                originalData = null;
+                isNewSample = true;
+                sampleIdInput.disabled = false;
+                showForm(t('form.newSampleTitle'), false, false);
+                updateChatContext();
+            }
+            await loadSampleList(searchInput.value);
+            if (data.todo_msg) appendChatMessage('assistant', data.todo_msg);
+        } catch (error) {
+            outcome.textContent = `${chatText('undoUncertain')}\n${error.message}`;
+            chatHistory.push({role: 'assistant', content: `${proposal.sample_id}: ${outcome.textContent}`});
         } finally {
             setChatBusy(false);
             scrollChat();

@@ -59,3 +59,8 @@ experimental conditions, weighing mass, measurement flags, or results.
   changed, expired, already-applied or stale proposal requires a fresh proposal.
 - Do not claim success before the UI reports confirmation success. Cancellation,
   closing the panel and starting a new chat never save a proposal.
+- After a successful save, the card offers Undo for 30 minutes in the same login
+  session. The operator must click Undo and Confirm Undo. You cannot invoke undo
+  or delete records through a tool. Undo restores the fields before an update or
+  removes a newly created sample only if it has no later edits or attachments.
+  Refreshing the page or starting a new chat removes the card; chats are not saved.

@@ -396,11 +396,16 @@ def update_sample(sample_id, data, expected_sample=None):
     return get_sample(new_id)
 
 
-def delete_sample(sample_id):
+def delete_sample(sample_id, expected_sample=None):
     """删除样品及其所有附件"""
     conn = get_db()
 
     try:
+        if expected_sample is not None:
+            conn.execute("BEGIN IMMEDIATE")
+            latest = sample_to_dict(conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone())
+            if latest is None or any(value != expected_sample[key] for key, value in latest.items()):
+                raise SampleChangedError('样品已发生变化，不能撤销新建')
         # 获取附件路径以便删除文件
         photos = conn.execute("SELECT filepath FROM photos WHERE sample_id = ?", (sample_id,)).fetchall()
         edx_imgs = conn.execute("SELECT filepath FROM edx_images WHERE sample_id = ?", (sample_id,)).fetchall()
@@ -408,11 +413,17 @@ def delete_sample(sample_id):
         data_files = conn.execute("SELECT filepath FROM data_files WHERE sample_id = ?", (sample_id,)).fetchall()
         other_files = conn.execute("SELECT filepath FROM other_files WHERE sample_id = ?", (sample_id,)).fetchall()
 
+        if expected_sample is not None and any((photos, edx_imgs, xrd_imgs, data_files, other_files)):
+            raise SampleChangedError('样品已有附件，不能撤销新建；如需删除请使用样品删除功能')
+
         # 删除数据库记录
         conn.execute("DELETE FROM samples WHERE id = ?", (sample_id,))
         conn.commit()
     finally:
         conn.close()
+
+    if expected_sample is not None:
+        return True  # AI 新建不创建附件或目录；撤销时不操作文件系统。
 
     # 删除文件 —— 先尝试删除整个样品文件夹
     safe_id = "".join(c if (c.isalnum() or c in '-_.') else '_' for c in sample_id)

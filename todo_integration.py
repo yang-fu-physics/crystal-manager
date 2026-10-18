@@ -312,6 +312,28 @@ def create_or_update_todo(sample_id, sintering_end, db_module, target_product=""
         logger.error(f"同步 To Do 失败: {e}")
         return False, f"同步失败: {str(e)}"
 
+def remove_sample_todo(sample_id, db_module):
+    """撤销新建或新增烧制时间时，取消已同步的提醒。"""
+    existing = db_module.get_todo_task(sample_id)
+    if existing is None:
+        return True, ''
+    if not is_connected():
+        return False, '样品已撤销，但未连接 Microsoft To Do，请手动取消该样品的提醒'
+    token = get_access_token()
+    if not token:
+        return False, '样品已撤销，但 Microsoft token 已过期，请手动取消该样品的提醒'
+    try:
+        list_id = _get_default_task_list_id(token)
+        if not list_id:
+            return False, '样品已撤销，但未找到 To Do 任务列表，请手动取消该样品的提醒'
+        delete_todo_task(token, list_id, existing['task_id'])
+    except http_requests.exceptions.RequestException as exc:
+        logger.error('撤销后取消 To Do 提醒失败: %s', exc)
+        return False, f'样品已撤销，但取消 To Do 提醒失败: {exc}'
+    db_module.delete_todo_task(sample_id)
+    return True, '已取消 Microsoft To Do 提醒'
+
+
 def sync_growing_tasks(db_module):
     """同步生长中样品的 To Do 任务状态，如果任务在 To Do 中已完成，则更新样品状态为 生长完成(4)"""
     newly_completed = []
