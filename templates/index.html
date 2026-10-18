@@ -7,6 +7,7 @@
     <meta name="description" content="晶体生长样品管理系统 - 管理样品信息、照片、EDX分析和数据文件" data-i18n-attr="content|description">
     <link rel="stylesheet" href="/static/fonts/fonts.css">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/chat.css">
 </head>
 <body>
     <!-- 顶部导航栏 -->
@@ -429,7 +430,33 @@
                 </section>
             </div>
         </main>
+        <aside class="ai-chat-panel" id="aiChatPanel" aria-labelledby="aiChatTitle" hidden>
+            <header class="ai-chat-header">
+                <div>
+                    <h2 id="aiChatTitle" data-chat-i18n="title">AI 样品助手</h2>
+                    <p id="aiChatContext"></p>
+                </div>
+                <button type="button" class="ai-chat-icon" id="aiChatClose" aria-label="收起助手" data-chat-i18n-label="close">×</button>
+            </header>
+            <div class="ai-chat-notice" data-chat-i18n="notice">只读取已保存数据；每次新建和修改都需确认。</div>
+            <div class="ai-chat-messages" id="aiChatMessages" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天记录" data-chat-i18n-label="history"></div>
+            <footer class="ai-chat-footer">
+                <div class="ai-chat-status" id="aiChatStatus" role="status"></div>
+                <form id="aiChatForm">
+                    <label class="ai-chat-input-label" for="aiChatInput" data-chat-i18n="inputLabel">告诉助手要查找或修改什么</label>
+                    <textarea id="aiChatInput" rows="3" maxlength="4000" data-chat-i18n-placeholder="placeholder" placeholder="例如：把当前样品的烧制耗时改为 72 小时"></textarea>
+                    <div class="ai-chat-compose-actions">
+                        <button type="button" class="ai-chat-button" id="aiChatReset" data-chat-i18n="reset">新对话</button>
+                        <button type="submit" class="ai-chat-button ai-chat-primary" id="aiChatSend" data-chat-i18n="send">发送</button>
+                    </div>
+                    <p class="ai-chat-key-hint" data-chat-i18n="keyHint">Enter 发送 · Shift + Enter 换行</p>
+                </form>
+            </footer>
+        </aside>
     </div>
+
+    <div class="ai-chat-backdrop" id="aiChatBackdrop" hidden></div>
+    <button type="button" class="ai-chat-launcher" id="aiChatToggle" aria-controls="aiChatPanel" aria-expanded="false" data-chat-i18n="title">AI 样品助手</button>
 
     <!-- 样品导出选择模态框 -->
     <div class="export-selection-overlay" id="exportSelectionModal" hidden>
@@ -463,5 +490,6 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="/static/js/app.js"></script>
+    <script src="/static/js/chat.js"></script>
 </body>
 </html>

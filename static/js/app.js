@@ -172,6 +172,7 @@ function updateI18n() {
     updateResultsLanguageUI();
     updateGrowthLanguageUI();
     updateExportSelectionCount();
+    updateChatLanguage();
 }
 
 function updateResultsLanguageUI() {
@@ -722,6 +723,7 @@ function updateCalcDisplays() {
     const tpText = targetProductInput.value || '-';
     sIds.forEach(el => el.textContent = sIdText);
     tps.forEach(el => el.textContent = tpText);
+    updateChatContext();
 }
 
 // ============================================================
@@ -1159,6 +1161,7 @@ function cancelEdit() {
         fillForm(originalData);
         showToast(t('messages.restoredOriginal'), 'info');
     }
+    updateChatContext();
 }
 
 async function deleteSample() {
@@ -1176,6 +1179,7 @@ async function deleteSample() {
         emptyState.style.display = 'flex';
         currentSampleId = null;
         isEditing = false;
+        updateChatContext();
         await loadSampleList(searchInput.value);
     } catch (e) {
         showToast(e.message, 'error');

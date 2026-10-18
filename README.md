@@ -20,8 +20,17 @@ Enter molar ratios and a reference element's mass to calculate the required mass
 
 ![Mass calculator showing Fe and Se molar ratios, molar masses, and calculated weighing masses](docs/screenshots/mass-calculation-en.jpg)
 
+### AI Assistant with Confirmation
+
+The assistant shows the exact proposed changes before the operator confirms each save. On phones and tablets it opens from the bottom of the screen.
+
+![Desktop AI assistant with a before-and-after sintering schedule confirmation card](docs/screenshots/ai-assistant-desktop.jpg)
+
+[View the phone layout](docs/screenshots/ai-assistant-mobile.jpg).
+
 ## Features
 
+- **AI Sample Assistant** — A right-hand desktop panel and a floating bottom drawer on phones/tablets. Search saved samples, prepare new records, or propose changes to growth procedures, sintering schedules, element ratios and masses. Every create/update shows a before/after confirmation card and requires an explicit click before saving. Uses the existing OpenAI-compatible configuration and a [sample-operation skill](ai_skills/sample-management.md); the model must support tool calling. See the [assistant guide](docs/ai-assistant.md) for data scope and confirmation behavior.
 - **Sample Management** — Create, view, edit, delete, search, and manually sort samples via drag-and-drop.
 - **Basic Info** — Sample ID, Target Product, Status (Success/Fail/Pending/Growing/Completed), Unique Measurements (Electric/Magnetic), Growth Process & Sintering Time Tracking, Results, Notes.
 - **Enhanced Navigation & UX** — One-click fast previous/next navigation, auto-resizing textareas, intelligent anti-scroll during saves, and smart duplication that preserves custom reference elements.

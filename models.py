@@ -312,7 +312,11 @@ def create_sample(data):
     return get_sample(data['id'])
 
 
-def update_sample(sample_id, data):
+class SampleChangedError(Exception):
+    pass
+
+
+def update_sample(sample_id, data, expected_sample=None):
     """更新样品"""
     now = config.get_local_now().isoformat()
     conn = get_db()
@@ -321,6 +325,11 @@ def update_sample(sample_id, data):
     new_id = data.get('id', sample_id)
 
     try:
+        if expected_sample is not None:
+            conn.execute("BEGIN IMMEDIATE")
+            latest = sample_to_dict(conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone())
+            if latest is None or any(value != expected_sample[key] for key, value in latest.items()):
+                raise SampleChangedError('样品已发生变化，请重新生成方案')
         if new_id != sample_id:
             conn.commit() # ensure no active transaction
             conn.execute("PRAGMA foreign_keys = OFF")

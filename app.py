@@ -21,6 +21,7 @@ from docx.shared import Inches, Pt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config
 import models
+import ai_chat
 import todo_integration
 import backup as _backup_module
 
@@ -217,7 +218,10 @@ def reorder_samples():
 
 @app.route('/api/samples', methods=['POST'])
 def create_sample():
-    data = request.get_json()
+    return _create_sample(request.get_json())
+
+
+def _create_sample(data):
     if not data or not data.get('id'):
         return jsonify({'error': '样品编号不能为空'}), 400
 
@@ -261,7 +265,10 @@ def get_sample(sample_id):
 
 @app.route('/api/samples/<sample_id>', methods=['PUT'])
 def update_sample(sample_id):
-    data = request.get_json()
+    return _update_sample(sample_id, request.get_json())
+
+
+def _update_sample(sample_id, data, expected_sample=None):
     if not data:
         return jsonify({'error': '无效数据'}), 400
 
@@ -287,7 +294,10 @@ def update_sample(sample_id):
     # 记录旧的 sintering_end 用于后续比较
     old_sintering_end = existing.get('sintering_end', '')
 
-    sample = models.update_sample(sample_id, data)
+    try:
+        sample = models.update_sample(sample_id, data, expected_sample=expected_sample)
+    except models.SampleChangedError as exc:
+        return jsonify({'error': str(exc)}), 409
     if sample is None:
         return jsonify({'error': '更新失败：未能获取更新后的样品数据'}), 500
 
@@ -308,6 +318,23 @@ def update_sample(sample_id):
     result['todo_synced'] = todo_synced
     result['todo_msg'] = todo_msg
     return jsonify(result)
+
+
+@app.route('/api/chat', methods=['POST'])
+def sample_chat():
+    return jsonify(ai_chat.chat(request.get_json(silent=True)))
+
+
+@app.route('/api/chat/confirm', methods=['POST'])
+def confirm_sample_chat():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': '缺少待确认方案'}), 400
+    proposal, current = ai_chat.confirmed_change(data.get('token'))
+    values = {'id': proposal['sample_id'], **proposal['changes']}
+    if proposal['operation'] == 'create':
+        return _create_sample(values)
+    return _update_sample(proposal['sample_id'], {**ai_chat.sample_record(current), **values}, expected_sample=current)
 
 
 @app.route('/api/samples/<sample_id>', methods=['DELETE'])
