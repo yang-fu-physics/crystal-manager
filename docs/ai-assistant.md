@@ -4,7 +4,17 @@
 
 ## 配置与数据范围
 
-聊天复用 `config.py` 的 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`，与 EDX 识别及手动翻译共用接口。模型必须支持 OpenAI 兼容的 Chat Completions **function/tool calling**。密钥只在服务端使用。接口失败时显示错误，不切换模型。
+聊天使用 `config.py` 中独立的 `AI_CHAT_API_KEY`、`AI_CHAT_BASE_URL`、`AI_CHAT_MODEL`，可单独选择接口和模型。EDX 识别及手动翻译继续使用原有 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
+
+已有部署需在 `config.py` 中补充以下三项，填写聊天服务的实际配置后重启 Python 进程：
+
+```python
+AI_CHAT_API_KEY = "sk-your-chat-api-key-here"
+AI_CHAT_BASE_URL = "https://api.openai.com/v1/"
+AI_CHAT_MODEL = "gpt-4o"
+```
+
+聊天模型必须支持 OpenAI 兼容的 Chat Completions **function/tool calling**。密钥只在服务端使用。接口失败时显示错误，不切换模型或使用识别服务的配置。
 
 使用聊天会把对话、当前选中的已保存样品及工具读取到的样品字段发送给所配置的模型服务。不会发送未保存的表单草稿、附件内容或本地文件路径。聊天记录仅保留在当前页面内存，刷新页面或点击“新对话”即可清空。
 

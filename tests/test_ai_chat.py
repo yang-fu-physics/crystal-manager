@@ -57,9 +57,9 @@ def test_create_requires_exact_signed_confirmation(client, install_ai):
     proposal, calls = propose(client, install_ai, {'target_product': 'FeSe'}, operation='create')
     assert models.get_sample('TEST-001') is None
     assert proposal['operation'] == 'create'
-    assert calls[0]['client']['api_key'] == test_config.OPENAI_API_KEY
-    assert calls[0]['client']['base_url'] == test_config.OPENAI_BASE_URL
-    assert calls[1]['model'] == test_config.OPENAI_MODEL
+    assert calls[0]['client']['api_key'] == test_config.AI_CHAT_API_KEY
+    assert calls[0]['client']['base_url'] == test_config.AI_CHAT_BASE_URL
+    assert calls[1]['model'] == test_config.AI_CHAT_MODEL
     assert 'Confirmation is mandatory for EVERY create or update' in calls[1]['messages'][0]['content']
     assert client.post('/api/chat/confirm', json={'confirmed': True, 'changes': {}}).status_code == 400
     assert models.get_sample('TEST-001') is None

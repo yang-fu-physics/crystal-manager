@@ -30,7 +30,7 @@
 
 ## 功能特性
 
-- **AI 样品助手** — 桌面最右侧独立面板，手机和平板底部浮动抽屉。支持查询样品、新建记录及修改生长制度、烧制时间、元素比例和称量质量。每次新建或修改都展示前后对比，必须点击“确认保存”才写入。复用现有 OpenAI 兼容接口配置，模型需支持工具调用，并加载[样品操作技能](ai_skills/sample-management.md)。数据范围和确认规则见[使用说明](docs/ai-assistant.md)。
+- **AI 样品助手** — 桌面最右侧独立面板，手机和平板底部浮动抽屉。支持查询样品、新建记录及修改生长制度、烧制时间、元素比例和称量质量。每次新建或修改都展示前后对比，必须点击“确认保存”才写入。使用独立的 `AI_CHAT_*` 接口配置，模型需支持工具调用，并加载[样品操作技能](ai_skills/sample-management.md)。数据范围和确认规则见[使用说明](docs/ai-assistant.md)。
 - **样品管理** — 新建、查看、编辑、删除、按状态及参数搜索样品，并支持全屏模式下的拖拽手动排序
 - **基本信息** — 样品编号、目标产物、状态（成功/失败/待定/生长中/已出炉）、专属测量标记（电学/磁性）、生长流程与烧制时间记录、结果、备注
 - **快捷导航与体验** — 极速的前后样品切换、文本框高度自适应、智能避免自动滚动，及支持保留参考元素的快速复制功能
@@ -77,10 +77,16 @@ cp config.py.example config.py
 LOGIN_PASSWORD = "your-password"                # 登录密码
 APP_PORT = 5000                                 # 服务端口
 TIMEZONE_OFFSET_HOURS = 8                       # 系统时区偏移量 (如北京时间为 8)
-OPENAI_API_KEY = "sk-your-api-key"              # EDX 识别用 API Key
+OPENAI_API_KEY = "sk-your-api-key"              # EDX 识别与手动翻译用 API Key
 OPENAI_BASE_URL = "https://api.openai.com/v1/"  # 代理地址
 OPENAI_MODEL = "gpt-4o"                         # 模型名称
+
+AI_CHAT_API_KEY = "sk-your-chat-api-key"         # 聊天助手独立的 API Key
+AI_CHAT_BASE_URL = "https://api.openai.com/v1/" # 聊天接口地址
+AI_CHAT_MODEL = "gpt-4o"                        # 支持工具调用的聊天模型
 ```
+
+已有部署：在 `config.py` 中补充上述三项 `AI_CHAT_*` 配置，填写后重启 Python 进程即可使用聊天助手。
 
 ### 3. 启动
 

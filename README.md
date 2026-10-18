@@ -30,7 +30,7 @@ The assistant shows the exact proposed changes before the operator confirms each
 
 ## Features
 
-- **AI Sample Assistant** — A right-hand desktop panel and a floating bottom drawer on phones/tablets. Search saved samples, prepare new records, or propose changes to growth procedures, sintering schedules, element ratios and masses. Every create/update shows a before/after confirmation card and requires an explicit click before saving. Uses the existing OpenAI-compatible configuration and a [sample-operation skill](ai_skills/sample-management.md); the model must support tool calling. See the [assistant guide](docs/ai-assistant.md) for data scope and confirmation behavior.
+- **AI Sample Assistant** — A right-hand desktop panel and a floating bottom drawer on phones/tablets. Search saved samples, prepare new records, or propose changes to growth procedures, sintering schedules, element ratios and masses. Every create/update shows a before/after confirmation card and requires an explicit click before saving. Uses separate `AI_CHAT_*` configuration and a [sample-operation skill](ai_skills/sample-management.md); the model must support tool calling. See the [assistant guide](docs/ai-assistant.md) for data scope and confirmation behavior.
 - **Sample Management** — Create, view, edit, delete, search, and manually sort samples via drag-and-drop.
 - **Basic Info** — Sample ID, Target Product, Status (Success/Fail/Pending/Growing/Completed), Unique Measurements (Electric/Magnetic), Growth Process & Sintering Time Tracking, Results, Notes.
 - **Enhanced Navigation & UX** — One-click fast previous/next navigation, auto-resizing textareas, intelligent anti-scroll during saves, and smart duplication that preserves custom reference elements.
@@ -77,10 +77,16 @@ Then edit `config.py`:
 LOGIN_PASSWORD = "your-password"                # Login password
 APP_PORT = 5000                                 # Server port
 TIMEZONE_OFFSET_HOURS = 8                       # Timezone offset (e.g. 8 for CST)
-OPENAI_API_KEY = "sk-your-api-key"              # API Key for EDX recognition
+OPENAI_API_KEY = "sk-your-api-key"              # API Key for EDX recognition and manual translation
 OPENAI_BASE_URL = "https://api.openai.com/v1/"  # Reverse proxy / base URL
 OPENAI_MODEL = "gpt-4o"                         # Model name
+
+AI_CHAT_API_KEY = "sk-your-chat-api-key"         # Separate API Key for the chat assistant
+AI_CHAT_BASE_URL = "https://api.openai.com/v1/" # Chat base URL
+AI_CHAT_MODEL = "gpt-4o"                        # Chat model with tool calling support
 ```
+
+Existing deployments: add all three `AI_CHAT_*` settings to `config.py` and restart the Python process to use the assistant.
 
 ### 3. Run the App
 

@@ -41,6 +41,10 @@ def _build_config_stub():
     config.OPENAI_BASE_URL = "https://api.openai.com/v1/"
     config.OPENAI_MODEL = "test-model"
 
+    config.AI_CHAT_API_KEY = "chat-test-key"
+    config.AI_CHAT_BASE_URL = "https://chat.example.test/v1/"
+    config.AI_CHAT_MODEL = "chat-test-model"
+
     config.MS_CLIENT_ID = ""
     config.MS_CLIENT_SECRET = ""
     config.MS_AUTHORITY = "https://login.microsoftonline.com/common"
