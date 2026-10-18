@@ -46,7 +46,7 @@ CHANGE_PROPERTIES = {
     'reference_mass': {'type': 'number', 'exclusiveMinimum': 0, 'maximum': 50,
                        'description': 'Grams of the selected reference element; never invent a weighing mass.'},
 }
-MAX_BATCH_SIZE = 20
+MAX_BATCH_SIZE = 10
 OPERATION_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
     'properties': {'operation': {'type': 'string', 'enum': ['create', 'update']},
@@ -70,7 +70,7 @@ TOOLS = [
     }},
     {'type': 'function', 'function': {
         'name': 'read_samples',
-        'description': 'Read up to 20 exact sample IDs together before comparing or proposing batch updates. Reports missing IDs explicitly.',
+        'description': 'Read up to 10 exact sample IDs together before comparing or proposing batch updates. Reports missing IDs explicitly.',
         'parameters': {'type': 'object', 'additionalProperties': False,
                        'properties': {'sample_ids': {'type': 'array', 'minItems': 1, 'maxItems': MAX_BATCH_SIZE,
                                                      'items': {'type': 'string'}, 'uniqueItems': True}},
@@ -83,7 +83,7 @@ TOOLS = [
     }},
     {'type': 'function', 'function': {
         'name': 'propose_sample_changes',
-        'description': 'Prepare up to 20 creates or updates, one per exact sample ID. Each gets its own confirmation and undo card. This tool NEVER writes data; omitted fields are preserved.',
+        'description': 'Prepare up to 10 creates or updates, one per exact sample ID. Each gets its own confirmation and undo card. This tool NEVER writes data; omitted fields are preserved.',
         'parameters': {'type': 'object', 'additionalProperties': False,
                        'properties': {'operations': {'type': 'array', 'minItems': 1, 'maxItems': MAX_BATCH_SIZE,
                                                     'items': OPERATION_SCHEMA}},
@@ -307,7 +307,7 @@ def chat(data, conversation_id):
                         if (set(arguments) != {'sample_ids'} or not isinstance(arguments['sample_ids'], list)
                                 or not 1 <= len(arguments['sample_ids']) <= MAX_BATCH_SIZE
                                 or any(not isinstance(value, str) or not value.strip() for value in arguments['sample_ids'])):
-                            raise BadRequest('请提供 1 到 20 个不重复的样品编号')
+                            raise BadRequest('请提供 1 到 10 个不重复的样品编号')
                         ids = [value.strip() for value in arguments['sample_ids']]
                         if len(set(ids)) != len(ids):
                             raise BadRequest('样品编号不能重复')
@@ -323,7 +323,7 @@ def chat(data, conversation_id):
                             raise BadRequest('方案参数无效')
                         if (not isinstance(operations, list) or not operations
                                 or len(proposals) + len(operations) > MAX_BATCH_SIZE):
-                            raise BadRequest('每次请为 1 到 20 个样品生成方案')
+                            raise BadRequest('每次请为 1 到 10 个样品生成方案')
                         prepared = []
                         ids = {proposal['sample_id'] for proposal in proposals}
                         for operation in operations:

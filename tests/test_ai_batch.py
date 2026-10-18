@@ -100,7 +100,7 @@ def test_multiple_single_proposal_tool_calls_are_all_retained(client, install_ai
      {'operation': 'update', 'sample_id': 'MISSING', 'changes': {'notes': 'invalid'}}],
     [{'operation': 'create', 'sample_id': 'A', 'changes': {}},
      {'operation': 'create', 'sample_id': 'B', 'changes': {'unsupported': 'invalid'}}],
-    [{'operation': 'create', 'sample_id': str(index), 'changes': {}} for index in range(21)],
+    [{'operation': 'create', 'sample_id': str(index), 'changes': {}} for index in range(11)],
 ])
 def test_invalid_batch_generates_no_partial_cards_or_samples(client, install_ai, operations):
     models.create_sample({'id': 'EXISTS', 'notes': 'preserve'})
@@ -132,15 +132,15 @@ def test_tool_error_does_not_silently_drop_part_of_parallel_batch(client, instal
     assert 'No proposal from this round was retained or saved' in calls[2]['messages'][-1]['content']
 
 
-def test_twenty_sample_batch_is_supported_and_next_message_supersedes_every_pending_card(client, install_ai):
+def test_ten_sample_batch_is_supported_and_next_message_supersedes_every_pending_card(client, install_ai):
     calls = install_ai([tool('propose_sample_changes', {'operations': [
-        {'operation': 'create', 'sample_id': f'BATCH-{index}', 'changes': {}} for index in range(20)
+        {'operation': 'create', 'sample_id': f'BATCH-{index}', 'changes': {}} for index in range(10)
     ]})])
-    response = ask(client, {'message': '为这 20 个编号生成空白样品'})
+    response = ask(client, {'message': '为这 10 个编号生成空白样品'})
     assert response.status_code == 200
     proposals = response.get_json()['proposals']
-    assert len(proposals) == 20
-    assert len(response.get_json()['conversation']['messages']) == 21
+    assert len(proposals) == 10
+    assert len(response.get_json()['conversation']['messages']) == 11
     assert 'propose_sample_changes' in {item['function']['name'] for item in calls[1]['tools']}
     install_ai([ChatCompletionMessage(role='assistant', content='已改为仅查询。')])
     conversation = response.get_json()['conversation']
@@ -148,8 +148,8 @@ def test_twenty_sample_batch_is_supported_and_next_message_supersedes_every_pend
         'conversation_id': conversation['id'], 'revision': conversation['revision'], 'message': '先不新建了',
     })
     assert next_response.status_code == 200
-    assert all(message['state'] == 'superseded' for message in next_response.get_json()['conversation']['messages'][1:21])
-    assert client.post('/api/chat/confirm', json={'token': proposals[19]['token']}).status_code == 409
+    assert all(message['state'] == 'superseded' for message in next_response.get_json()['conversation']['messages'][1:11])
+    assert client.post('/api/chat/confirm', json={'token': proposals[9]['token']}).status_code == 409
     assert models.get_all_samples() == []
 
 
@@ -173,7 +173,7 @@ def test_batch_read_returns_exact_records_and_explicit_missing_ids(client, insta
     assert len(models.get_all_samples()) == 3
 
 
-@pytest.mark.parametrize('ids', [None, [], 'A', ['A', 1], [' '], ['A', ' A '], list(map(str, range(21)))])
+@pytest.mark.parametrize('ids', [None, [], 'A', ['A', 1], [' '], ['A', ' A '], list(map(str, range(11)))])
 def test_invalid_batch_read_is_reported_to_model(client, install_ai, ids):
     calls = install_ai([
         tool('read_samples', {'sample_ids': ids}),
