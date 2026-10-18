@@ -439,6 +439,13 @@
                 <button type="button" class="ai-chat-icon" id="aiChatClose" aria-label="收起助手" data-chat-i18n-label="close">×</button>
             </header>
             <div class="ai-chat-notice" data-chat-i18n="notice">只读取已保存数据；每次新建和修改都需确认。</div>
+            <div class="ai-chat-sessions">
+                <label for="aiChatConversations" data-chat-i18n="sessions">历史会话（已登录设备共享）</label>
+                <div class="ai-chat-session-controls">
+                    <select id="aiChatConversations" data-chat-i18n-label="sessions" aria-label="历史会话"></select>
+                    <button type="button" class="ai-chat-button" id="aiChatRefresh" data-chat-i18n-label="refresh" aria-label="刷新会话">↻</button>
+                </div>
+            </div>
             <div class="ai-chat-messages" id="aiChatMessages" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天记录" data-chat-i18n-label="history"></div>
             <footer class="ai-chat-footer">
                 <div class="ai-chat-status" id="aiChatStatus" role="status"></div>
@@ -446,7 +453,7 @@
                     <label class="ai-chat-input-label" for="aiChatInput" data-chat-i18n="inputLabel">告诉助手要查找或修改什么</label>
                     <textarea id="aiChatInput" rows="3" maxlength="4000" data-chat-i18n-placeholder="placeholder" placeholder="例如：把当前样品的烧制耗时改为 72 小时"></textarea>
                     <div class="ai-chat-compose-actions">
-                        <button type="button" class="ai-chat-button" id="aiChatReset" data-chat-i18n="reset">新对话</button>
+                        <button type="button" class="ai-chat-button" id="aiChatReset" data-chat-i18n="reset">新建会话</button>
                         <button type="submit" class="ai-chat-button ai-chat-primary" id="aiChatSend" data-chat-i18n="send">发送</button>
                     </div>
                     <p class="ai-chat-key-hint" data-chat-i18n="keyHint">Enter 发送 · Shift + Enter 换行</p>

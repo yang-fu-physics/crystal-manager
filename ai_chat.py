@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 import uuid
 
-from flask import current_app, session
+from flask import current_app
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from openai import OpenAI, OpenAIError
 from werkzeug.exceptions import BadGateway, BadRequest, Conflict, NotFound
@@ -92,7 +92,7 @@ def positive_number(value, maximum):
     return type(value) in (int, float) and math.isfinite(value) and 0 < value <= maximum
 
 
-def prepare_change(operation, sample_id, changes):
+def prepare_change(operation, sample_id, changes, conversation_id):
     if operation not in ('create', 'update') or not isinstance(sample_id, str) or not sample_id.strip():
         raise BadRequest('请明确操作类型和样品编号')
     sample_id = sample_id.strip()
@@ -171,51 +171,52 @@ def prepare_change(operation, sample_id, changes):
     changes = {key: value for key, value in changes.items() if key not in before or value != before[key]}
     if not changes:
         raise BadRequest('方案没有改变任何字段')
-    proposal = {'operation': operation, 'sample_id': sample_id, 'changes': changes,
-                'version': fingerprint(existing), 'operator': session['chat_operator']}
+    proposal = {'id': uuid.uuid4().hex, 'operation': operation, 'sample_id': sample_id, 'changes': changes,
+                'version': fingerprint(existing), 'conversation_id': conversation_id}
     return {'operation': operation, 'sample_id': sample_id,
             'diff': [{'field': key, 'before': before.get(key), 'after': value} for key, value in changes.items()],
             'token': signer().dumps(proposal)}
 
 
-def confirmed_change(token):
+def confirmed_change(token, conversation_id):
     if not isinstance(token, str):
         raise BadRequest('缺少待确认方案')
     try:
         proposal = signer().loads(token, max_age=1800)
     except BadSignature as exc:
         raise BadRequest('方案已过期或被修改，请重新生成') from exc
-    if proposal['operator'] != session.get('chat_operator'):
-        raise BadRequest('请在生成方案的登录会话中确认')
+    if proposal['conversation_id'] != conversation_id:
+        raise BadRequest('方案不属于此会话')
     current = models.get_sample(proposal['sample_id'])
     if fingerprint(current) != proposal['version']:
         raise Conflict('样品已发生变化，请读取最新数据后重新生成方案')
     return proposal, current
 
 
-def undo_token(before, after):
+def undo_token(before, after, conversation_id):
     return signer('crystal-chat-undo').dumps({
+        'id': uuid.uuid4().hex,
         'sample_id': after['id'], 'before': sample_record(before) if before else None,
-        'version': fingerprint(after), 'operator': session['chat_operator'],
+        'version': fingerprint(after), 'conversation_id': conversation_id,
     })
 
 
-def confirmed_undo(token):
+def confirmed_undo(token, conversation_id):
     if not isinstance(token, str):
         raise BadRequest('缺少撤销凭据')
     try:
         receipt = signer('crystal-chat-undo').loads(token, max_age=1800)
     except BadSignature as exc:
         raise BadRequest('撤销凭据已过期或被修改') from exc
-    if receipt['operator'] != session.get('chat_operator'):
-        raise BadRequest('请在保存方案的登录会话中撤销')
+    if receipt['conversation_id'] != conversation_id:
+        raise BadRequest('撤销凭据不属于此会话')
     current = models.get_sample(receipt['sample_id'])
     if fingerprint(current) != receipt['version']:
         raise Conflict('样品已发生变化或已经撤销，不能撤销这次保存')
     return receipt, current
 
 
-def chat(data):
+def chat(data, conversation_id):
     if not isinstance(data, dict):
         raise BadRequest('请求必须是 JSON 对象')
     history = data.get('messages')
@@ -238,7 +239,6 @@ def chat(data):
     lang = data.get('lang', 'zh')
     if lang not in ('zh', 'en'):
         raise BadRequest('界面语言无效')
-    session.setdefault('chat_operator', uuid.uuid4().hex)
     skill = (Path(__file__).parent / 'ai_skills' / 'sample-management.md').read_text(encoding='utf-8')
     context = {'language': lang, 'local_time': config.get_local_now().isoformat(timespec='minutes'),
                'selected_sample': sample_record(selected) if selected else None}
@@ -284,7 +284,7 @@ def chat(data):
                     elif name == 'propose_sample_change':
                         if set(arguments) != {'operation', 'sample_id', 'changes'}:
                             raise BadRequest('方案参数无效')
-                        proposal = prepare_change(**arguments)
+                        proposal = prepare_change(**arguments, conversation_id=conversation_id)
                         return {'reply': ('请核对下方方案；点击确认保存后才会写入。' if lang == 'zh'
                                           else 'Review the changes below. Nothing is saved until you confirm.'),
                                 'proposal': proposal}

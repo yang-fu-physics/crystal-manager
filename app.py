@@ -11,7 +11,7 @@ import csv
 from io import BytesIO, StringIO
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template, send_from_directory, send_file, session, redirect, url_for
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import BadRequest, Conflict, HTTPException
 from functools import wraps
 from PIL import Image
 import docx
@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config
 import models
 import ai_chat
+import chat_history
 import todo_integration
 import backup as _backup_module
 
@@ -320,9 +321,50 @@ def _update_sample(sample_id, data, expected_sample=None):
     return jsonify(result)
 
 
+@app.route('/api/chat/conversations', methods=['GET', 'POST'])
+def chat_conversations():
+    if request.method == 'POST':
+        return jsonify(chat_history.create_conversation()), 201
+    response = jsonify(chat_history.list_conversations())
+    response.cache_control.no_store = True
+    return response
+
+
+@app.route('/api/chat/conversations/<conversation_id>', methods=['GET'])
+def chat_conversation(conversation_id):
+    response = jsonify(chat_history.get_conversation(conversation_id))
+    response.cache_control.no_store = True
+    return response
+
+
 @app.route('/api/chat', methods=['POST'])
 def sample_chat():
-    return jsonify(ai_chat.chat(request.get_json(silent=True)))
+    data = request.get_json(silent=True)
+    if (not isinstance(data, dict)
+            or set(data) - {'conversation_id', 'revision', 'message', 'sample_id', 'lang'}
+            or not isinstance(data.get('message'), str) or not data['message'].strip()
+            or len(data['message']) > 12000 or not isinstance(data.get('conversation_id'), str)
+            or type(data.get('revision')) is not int):
+        raise BadRequest('请提供会话、版本和有效的用户消息')
+    conversation = chat_history.get_conversation(data['conversation_id'])
+    if conversation['revision'] != data['revision']:
+        raise Conflict('会话已在其他页面更新，请重新加载后继续')
+    if any(message['state'] in ('confirming', 'undoing') for message in conversation['messages']):
+        raise Conflict('此会话有保存或撤销操作正在处理，请重新加载后核对')
+    result = ai_chat.chat({**data, 'messages': chat_history.model_messages(conversation, data['message'])},
+                          conversation['id'])
+    result['conversation'] = chat_history.append_turn(conversation, data['message'], result)
+    return jsonify(result)
+
+
+@app.route('/api/chat/cancel', methods=['POST'])
+def cancel_sample_chat():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise BadRequest('缺少待取消方案')
+    message = chat_history.get_action(data.get('token'))
+    chat_history.transition(message, 'pending', 'cancelled')
+    return jsonify(chat_history.get_conversation(message['conversation_id']))
 
 
 @app.route('/api/chat/confirm', methods=['POST'])
@@ -330,7 +372,11 @@ def confirm_sample_chat():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({'error': '缺少待确认方案'}), 400
-    proposal, current = ai_chat.confirmed_change(data.get('token'))
+    message = chat_history.get_action(data.get('token'))
+    if message['state'] != 'pending':
+        raise Conflict('方案已处理或被后续消息替代')
+    proposal, current = ai_chat.confirmed_change(data.get('token'), message['conversation_id'])
+    chat_history.transition(message, 'pending', 'confirming')
     values = {'id': proposal['sample_id'], **proposal['changes']}
     if proposal['operation'] == 'create':
         response = app.make_response(_create_sample(values))
@@ -338,9 +384,13 @@ def confirm_sample_chat():
         response = app.make_response(_update_sample(
             proposal['sample_id'], {**ai_chat.sample_record(current), **values}, expected_sample=current))
     if response.status_code >= 400:
+        chat_history.transition(message, 'confirming', 'failed', outcome=response.get_json()['error'])
         return response
     result = response.get_json()
-    result['undo_token'] = ai_chat.undo_token(current, result)
+    result['undo_token'] = ai_chat.undo_token(current, result, message['conversation_id'])
+    chat_history.transition(message, 'confirming', 'saved', undo_token=result['undo_token'],
+                            outcome=result['todo_msg'])
+    result['conversation_id'] = message['conversation_id']
     return jsonify(result), response.status_code
 
 
@@ -349,21 +399,29 @@ def undo_sample_chat():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({'error': '缺少撤销凭据'}), 400
-    receipt, current = ai_chat.confirmed_undo(data.get('token'))
+    message = chat_history.get_action(data.get('token'), undo=True)
+    if message['state'] != 'saved':
+        raise Conflict('这次保存已撤销或正在处理')
+    receipt, current = ai_chat.confirmed_undo(data.get('token'), message['conversation_id'])
+    chat_history.transition(message, 'saved', 'undoing')
     if receipt['before'] is None:
         try:
             models.delete_sample(receipt['sample_id'], expected_sample=current)
         except models.SampleChangedError as exc:
+            chat_history.transition(message, 'undoing', 'failed', outcome=str(exc))
             return jsonify({'error': str(exc)}), 409
         result = {'deleted': True, 'sample_id': receipt['sample_id']}
     else:
         response = app.make_response(_update_sample(
             receipt['sample_id'], receipt['before'], expected_sample=current))
         if response.status_code >= 400:
+            chat_history.transition(message, 'undoing', 'failed', outcome=response.get_json()['error'])
             return response
         result = response.get_json()
     if receipt['before'] is None or (not receipt['before']['sintering_end'] and current['sintering_end']):
         result['todo_synced'], result['todo_msg'] = todo_integration.remove_sample_todo(receipt['sample_id'], models)
+    chat_history.transition(message, 'undoing', 'undone', outcome=result.get('todo_msg', ''))
+    result['conversation_id'] = message['conversation_id']
     return jsonify(result)
 
 

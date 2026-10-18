@@ -4,7 +4,10 @@ const chatCopy = {
         title: 'AI 样品助手', close: '收起助手', history: '聊天记录',
         notice: '只读取已保存数据；每次新建和修改都需确认。',
         inputLabel: '告诉助手要查找或修改什么', placeholder: '例如：把当前样品的烧制耗时改为 72 小时',
-        reset: '新对话', send: '发送', keyHint: 'Enter 发送 · Shift + Enter 换行',
+        reset: '新建会话', sessions: '历史会话（已登录设备共享）', refresh: '刷新会话',
+        loading: '正在加载会话…', expired: '方案已过期，请重新提出要求。',
+        undoExpired: '已保存，撤销期限已过。', processing: '操作处理中；若结果未确认，请重新加载并核对样品。',
+        send: '发送', keyHint: 'Enter 发送 · Shift + Enter 换行',
         context: '当前样品：', none: '未选择', draft: '新建草稿（尚未保存）',
         welcome: '可以查找样品、新建记录、修改生长制度或元素比例。先说明要求，再核对并确认具体变更。',
         examples: ['列出最近的样品', '查看当前样品的生长制度', '把当前样品的烧制耗时改为 72 小时'],
@@ -25,7 +28,10 @@ const chatCopy = {
         title: 'AI Sample Assistant', close: 'Close assistant', history: 'Chat history',
         notice: 'Reads saved data only. Every create or update needs your confirmation.',
         inputLabel: 'What would you like to find or change?', placeholder: 'For example: change this sample’s sintering duration to 72 hours',
-        reset: 'New chat', send: 'Send', keyHint: 'Enter to send · Shift + Enter for a new line',
+        reset: 'New conversation', sessions: 'History (shared by signed-in devices)', refresh: 'Refresh conversations',
+        loading: 'Loading conversation…', expired: 'Proposal expired. Describe your request again.',
+        undoExpired: 'Saved. The undo period has expired.', processing: 'Operation processing. Reload and check the sample if the result is unknown.',
+        send: 'Send', keyHint: 'Enter to send · Shift + Enter for a new line',
         context: 'Current sample: ', none: 'None selected', draft: 'New draft (not saved)',
         welcome: 'Find samples, create records, or change growth procedures and element ratios. Describe your request, then review and confirm the exact changes.',
         examples: ['List recent samples', 'Read this sample’s growth procedure', 'Change this sample’s sintering duration to 72 hours'],
@@ -60,10 +66,12 @@ const chatMessages = document.getElementById('aiChatMessages');
 const chatInput = document.getElementById('aiChatInput');
 const chatSend = document.getElementById('aiChatSend');
 const chatReset = document.getElementById('aiChatReset');
+const chatConversations = document.getElementById('aiChatConversations');
+const chatRefresh = document.getElementById('aiChatRefresh');
 const chatStatus = document.getElementById('aiChatStatus');
 const chatSmallScreen = window.matchMedia('(max-width: 1350px)');
-let chatHistory = [];
-let chatPending = null;
+let chatConversation = null;
+let chatConversationList = [];
 let chatBusy = false;
 
 function chatText(key) { return chatCopy[currentLang][key]; }
@@ -82,7 +90,9 @@ function updateChatLanguage() {
     document.querySelectorAll('[data-chat-i18n-label]').forEach(el => { el.setAttribute('aria-label', chatText(el.dataset.chatI18nLabel)); });
     document.querySelectorAll('[data-chat-i18n-placeholder]').forEach(el => { el.placeholder = chatText(el.dataset.chatI18nPlaceholder); });
     updateChatContext();
-    if (!chatHistory.length && !chatBusy) showChatWelcome();
+    renderChatConversations();
+    if (chatConversation) renderChatConversation();
+    else if (!chatBusy) showChatWelcome();
 }
 function setChatOpen(open) {
     chatPanel.hidden = !open;
@@ -101,9 +111,11 @@ function setChatOpen(open) {
 function scrollChat() { chatMessages.scrollTop = chatMessages.scrollHeight; }
 function setChatBusy(busy, status = '') {
     chatBusy = busy;
-    chatSend.disabled = busy;
+    chatSend.disabled = busy || !chatConversation;
     chatReset.disabled = busy;
-    chatInput.disabled = busy;
+    chatConversations.disabled = busy;
+    chatRefresh.disabled = busy;
+    chatInput.disabled = busy || !chatConversation;
     chatStatus.textContent = status;
     document.getElementById('aiChatForm').setAttribute('aria-busy', String(busy));
     if (busy && chatSmallScreen.matches) document.getElementById('aiChatClose').focus({preventScroll: true});
@@ -136,30 +148,60 @@ function chatValue(field, value) {
     if (field === 'actual_masses') return value.length ? value.map(item => `${item.element}: ${item.mass.toFixed(4)} g`).join('\n') : '—';
     return String(value);
 }
-function resolveChatProposal(message) {
-    if (!chatPending) return;
-    chatPending.confirm.disabled = true;
-    chatPending.cancel.disabled = true;
-    chatPending.outcome.textContent = message;
-    chatPending = null;
+async function chatRequest(url, options) {
+    const response = await fetch(url, options);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+    return data;
 }
-function showChatProposal(proposal) {
+function renderChatConversations() {
+    chatConversations.replaceChildren();
+    chatConversationList.forEach(conversation => {
+        const option = chatElement('option', '', (conversation.title || chatText('reset')) +
+            ' · ' + conversation.updated_at.slice(5, 16).replace('T', ' '));
+        option.value = conversation.id;
+        chatConversations.append(option);
+    });
+    if (chatConversation) chatConversations.value = chatConversation.id;
+}
+async function loadChatConversations() {
+    chatConversationList = await chatRequest('/api/chat/conversations');
+    renderChatConversations();
+}
+function setChatConversation(conversation) {
+    chatConversation = conversation;
+    const {messages, ...summary} = conversation;
+    chatConversationList = [summary, ...chatConversationList.filter(item => item.id !== conversation.id)]
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    localStorage.setItem('crystal-chat-conversation', conversation.id);
+    renderChatConversations();
+    renderChatConversation();
+}
+async function loadChatConversation(id) {
+    setChatConversation(await chatRequest('/api/chat/conversations/' + encodeURIComponent(id)));
+}
+function renderChatConversation() {
+    chatMessages.replaceChildren();
+    if (!chatConversation.messages.length) { showChatWelcome(); return; }
+    chatConversation.messages.forEach(message => {
+        appendChatMessage(message.role, message.content);
+        if (message.proposal) showChatProposal(message);
+    });
+    scrollChat();
+}
+function showChatProposal(message) {
+    const proposal = message.proposal;
     const card = chatElement('section', 'ai-chat-proposal');
-    card.append(chatElement('h3', '', chatText(proposal.operation) + proposal.sample_id),
-        chatElement('p', 'ai-chat-proposal-note', chatText('pending')));
-    const summary = [];
+    card.dataset.messageId = message.id;
+    card.append(chatElement('h3', '', chatText(proposal.operation) + proposal.sample_id));
     proposal.diff.forEach(change => {
         const diff = chatElement('div', 'ai-chat-diff');
-        const field = chatFields[change.field][currentLang === 'zh' ? 0 : 1];
-        const before = chatValue(change.field, change.before);
-        const after = chatValue(change.field, change.after);
-        diff.append(chatElement('h4', '', field),
+        diff.append(chatElement('h4', '', chatFields[change.field][currentLang === 'zh' ? 0 : 1]),
             chatElement('div', 'ai-chat-diff-label', chatText('before')),
-            chatElement('div', 'ai-chat-diff-value', before),
+            chatElement('div', 'ai-chat-diff-value', chatValue(change.field, change.before)),
             chatElement('div', 'ai-chat-diff-label', chatText('after')),
-            chatElement('div', 'ai-chat-diff-value ai-chat-diff-after', after));
+            chatElement('div', 'ai-chat-diff-value ai-chat-diff-after', chatValue(change.field, change.after)));
         card.append(diff);
-        summary.push(`${field}: ${before} → ${after}`);
     });
     const actions = chatElement('div', 'ai-chat-proposal-actions');
     const confirm = chatElement('button', 'ai-chat-button ai-chat-primary', chatText('confirm'));
@@ -167,61 +209,63 @@ function showChatProposal(proposal) {
     const undo = chatElement('button', 'ai-chat-button', chatText('undo'));
     const keep = chatElement('button', 'ai-chat-button', chatText('keep'));
     confirm.type = cancel.type = undo.type = keep.type = 'button';
-    undo.dataset.chatI18n = 'undo';
-    keep.dataset.chatI18n = 'keep';
-    undo.hidden = keep.hidden = true;
-    let undoToken;
+    confirm.hidden = cancel.hidden = message.state !== 'pending';
+    confirm.disabled = cancel.disabled = !message.can_confirm;
+    undo.hidden = message.state !== 'saved';
+    undo.disabled = !message.can_undo;
+    keep.hidden = true;
     let undoReady = false;
-    const outcome = chatElement('p', 'ai-chat-outcome');
+    const labels = {
+        pending: message.can_confirm ? 'pending' : 'expired',
+        saved: message.can_undo ? 'saved' : 'undoExpired',
+        cancelled: 'cancelled', superseded: 'replaced', undone: 'undone',
+        confirming: 'processing', undoing: 'processing', failed: 'failed',
+    };
+    const outcome = chatElement('p', 'ai-chat-outcome', chatText(labels[message.state]) +
+        (message.outcome ? '\n' + message.outcome : ''));
     actions.append(confirm, cancel, undo, keep);
     card.append(actions, outcome);
     chatMessages.append(card);
-    chatPending = {confirm, cancel, outcome};
-    chatHistory.push({role: 'assistant', content: `${chatText(proposal.operation)}${proposal.sample_id}\n${summary.join('\n')}\n${chatText('pending')}`});
-    cancel.addEventListener('click', () => {
-        resolveChatProposal(chatText('cancelled'));
-        chatHistory.push({role: 'assistant', content: chatText('cancelled')});
+    cancel.addEventListener('click', async () => {
+        if (chatBusy) return;
+        setChatBusy(true);
+        try {
+            const conversation = await chatRequest('/api/chat/cancel', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({token: proposal.token}),
+            });
+            setChatConversation(conversation);
+        } catch (error) {
+            outcome.textContent = error.message;
+        } finally { setChatBusy(false); }
     });
     confirm.addEventListener('click', async () => {
         if (chatBusy) return;
         confirm.disabled = cancel.disabled = true;
         setChatBusy(true, chatText('saving'));
         try {
-            const response = await fetch('/api/chat/confirm', {
+            await chatRequest('/api/chat/confirm', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({token: proposal.token}),
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error);
-            resolveChatProposal(chatText('saved'));
-            undoToken = data.undo_token;
-            confirm.hidden = cancel.hidden = true;
-            undo.hidden = false;
-            chatHistory.push({role: 'assistant', content: `${proposal.sample_id}: ${chatText('saved')}`});
+            await loadChatConversation(chatConversation.id);
             await loadSampleList(searchInput.value);
-            if (data.todo_msg) appendChatMessage('assistant', data.todo_msg);
         } catch (error) {
-            const message = `${chatText('uncertain')}\n${error.message}`;
-            resolveChatProposal(message);
-            chatHistory.push({role: 'assistant', content: message});
-        } finally {
-            setChatBusy(false);
-            scrollChat();
-        }
+            outcome.textContent = chatText('uncertain') + '\n' + error.message;
+        } finally { setChatBusy(false); scrollChat(); }
     });
     keep.addEventListener('click', () => {
+        if (chatBusy) return;
         undoReady = false;
         keep.hidden = true;
-        undo.dataset.chatI18n = 'undo';
         undo.textContent = chatText('undo');
-        outcome.textContent = chatText('saved');
+        outcome.textContent = chatText('saved') + (message.outcome ? '\n' + message.outcome : '');
     });
     undo.addEventListener('click', async () => {
         if (chatBusy) return;
         if (!undoReady) {
             undoReady = true;
             keep.hidden = false;
-            undo.dataset.chatI18n = 'confirmUndo';
             undo.textContent = chatText('confirmUndo');
             outcome.textContent = chatText(proposal.operation === 'create' ? 'undoCreate' : 'undoUpdate') + proposal.sample_id;
             scrollChat();
@@ -230,15 +274,10 @@ function showChatProposal(proposal) {
         undo.disabled = keep.disabled = true;
         setChatBusy(true, chatText('undoing'));
         try {
-            const response = await fetch('/api/chat/undo', {
+            const data = await chatRequest('/api/chat/undo', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({token: undoToken}),
+                body: JSON.stringify({token: message.undo_token}),
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error);
-            undo.hidden = keep.hidden = true;
-            outcome.textContent = chatText('undone');
-            chatHistory.push({role: 'assistant', content: `${proposal.sample_id}: ${chatText('undone')}`});
             if (data.deleted && currentSampleId === proposal.sample_id) {
                 currentSampleId = null;
                 originalData = null;
@@ -247,47 +286,49 @@ function showChatProposal(proposal) {
                 showForm(t('form.newSampleTitle'), false, false);
                 updateChatContext();
             }
+            await loadChatConversation(chatConversation.id);
             await loadSampleList(searchInput.value);
-            if (data.todo_msg) appendChatMessage('assistant', data.todo_msg);
         } catch (error) {
-            outcome.textContent = `${chatText('undoUncertain')}\n${error.message}`;
-            chatHistory.push({role: 'assistant', content: `${proposal.sample_id}: ${outcome.textContent}`});
-        } finally {
-            setChatBusy(false);
-            scrollChat();
-        }
+            outcome.textContent = chatText('undoUncertain') + '\n' + error.message;
+        } finally { setChatBusy(false); scrollChat(); }
     });
-    scrollChat();
 }
 async function sendChatMessage(event) {
     event.preventDefault();
     const content = chatInput.value.trim();
     if (!content || chatBusy) return;
-    if (chatHistory.length >= 28) { chatStatus.textContent = chatText('full'); return; }
-    resolveChatProposal(chatText('replaced'));
-    if (!chatHistory.length) chatMessages.replaceChildren();
     appendChatMessage('user', content);
-    chatHistory.push({role: 'user', content});
     chatInput.value = '';
     setChatBusy(true, chatText('thinking'));
     try {
-        const response = await fetch('/api/chat', {
+        const data = await chatRequest('/api/chat', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({messages: chatHistory, sample_id: currentSampleId, lang: currentLang}),
+            body: JSON.stringify({conversation_id: chatConversation.id, revision: chatConversation.revision,
+                message: content, sample_id: currentSampleId, lang: currentLang}),
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error);
-        appendChatMessage('assistant', data.reply);
-        if (data.proposal) showChatProposal(data.proposal);
-        else chatHistory.push({role: 'assistant', content: data.reply});
+        setChatConversation(data.conversation);
     } catch (error) {
-        chatHistory.pop();
+        renderChatConversation();
         chatInput.value = content;
-        appendChatMessage('assistant', error.message || chatText('failed'), true);
+        appendChatMessage('assistant', error.message, true);
     } finally {
         setChatBusy(false);
         chatInput.focus({preventScroll: true});
     }
+}
+async function initializeChat() {
+    setChatBusy(true, chatText('loading'));
+    try {
+        await loadChatConversations();
+        const remembered = localStorage.getItem('crystal-chat-conversation');
+        const selected = chatConversationList.find(conversation => conversation.id === remembered) || chatConversationList[0];
+        if (selected) await loadChatConversation(selected.id);
+        else {
+            setChatConversation(await chatRequest('/api/chat/conversations', {method: 'POST'}));
+        }
+    } catch (error) {
+        appendChatMessage('assistant', error.message, true);
+    } finally { setChatBusy(false); }
 }
 chatLauncher.addEventListener('click', () => setChatOpen(true));
 document.getElementById('aiChatClose').addEventListener('click', () => setChatOpen(false));
@@ -296,17 +337,40 @@ document.getElementById('aiChatForm').addEventListener('submit', sendChatMessage
 chatInput.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) sendChatMessage(event);
 });
-chatReset.addEventListener('click', () => {
-    resolveChatProposal(chatText('cancelled'));
-    chatHistory = [];
-    chatStatus.textContent = '';
-    showChatWelcome();
-    chatInput.focus();
+chatReset.addEventListener('click', async () => {
+    if (chatBusy) return;
+    setChatBusy(true, chatText('loading'));
+    try {
+        setChatConversation(await chatRequest('/api/chat/conversations', {method: 'POST'}));
+        chatInput.value = '';
+    } catch (error) {
+        appendChatMessage('assistant', error.message, true);
+    } finally { setChatBusy(false); chatInput.focus(); }
+});
+chatConversations.addEventListener('change', async () => {
+    setChatBusy(true, chatText('loading'));
+    try {
+        await loadChatConversation(chatConversations.value);
+        chatInput.value = '';
+    } catch (error) {
+        chatConversations.value = chatConversation ? chatConversation.id : '';
+        appendChatMessage('assistant', error.message, true);
+    } finally { setChatBusy(false); }
+});
+chatRefresh.addEventListener('click', async () => {
+    setChatBusy(true, chatText('loading'));
+    try {
+        await loadChatConversations();
+        if (chatConversation) await loadChatConversation(chatConversation.id);
+        else await initializeChat();
+    } catch (error) {
+        appendChatMessage('assistant', error.message, true);
+    } finally { setChatBusy(false); }
 });
 chatPanel.addEventListener('keydown', event => {
     if (event.key === 'Escape') setChatOpen(false);
     if (event.key === 'Tab' && chatSmallScreen.matches) {
-        const controls = [...chatPanel.querySelectorAll('button:not(:disabled), textarea:not(:disabled)')];
+        const controls = [...chatPanel.querySelectorAll('button:not(:disabled):not([hidden]), select:not(:disabled), textarea:not(:disabled)')];
         const first = controls[0], last = controls[controls.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -314,9 +378,9 @@ chatPanel.addEventListener('keydown', event => {
 });
 chatSmallScreen.addEventListener('change', () => setChatOpen(!chatPanel.hidden));
 updateChatLanguage();
-// Desktop uses an independent right column; touch layouts start collapsed.
 if (!chatSmallScreen.matches) {
     chatPanel.hidden = false;
     document.body.classList.add('ai-chat-open');
     chatLauncher.setAttribute('aria-expanded', 'true');
 }
+initializeChat();
