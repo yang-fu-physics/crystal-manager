@@ -44,7 +44,7 @@
 - **双语与响应式设计** — 支持中英文 (i18n) 动态无缝切换；为手机、平板深度优化的独立排版结构和交互体验；提供全屏的宽屏浏览模式
 - **双语结果、生长流程与手动翻译** — 中文和英文结果分别保存到 `results` / `results_en`，中文和英文生长流程分别保存到 `growth_process` / `growth_process_en`。迁移时保留旧中文生长流程，新英文字段初始为空，不会批量翻译。中文界面两个区均显示 `en to cn` 按钮，英文界面均显示 `cn to en`。翻译通过 `POST /api/results/translate` 完成，直接复用 EDX 图片识别使用的同一个 OpenAI-compatible API、client 和配置。翻译只更新当前表单草稿，必须手动点击 Save/保存（manual save）才会写入数据库，不会自动保存（no auto-save）。复制样品时保留中英文两个生长流程字段，但结果字段仍按现有逻辑清空。
 - **按语言导出 Word/CSV/PPTX** — Word 导出根据 `lang` 选择对应的已保存字段（`zh` → `growth_process` / `results`，`en` → `growth_process_en` / `results_en`），不会跨语言 fallback。总 CSV/PPTX 导出默认包含全部样品，也可通过选择窗口导出勾选的样品。选择窗口保持当前样品列表顺序，但实际 CSV/PPTX 导出时严格使用当前顺序的倒序，不根据时间字段另行排序，使当前列表最后的样品最先导出。GET 接口继续导出全部，POST + `sample_ids` 导出指定样品。CSV 固定为五列：编号、目标样品、是否成功、结果中的文字、生长方法。元素比例放在“生长方法”单元格第一行，下面换行显示对应语言的生长流程。PPTX 首页为样品总览表格，后续每个选中样品一页。未保存的草稿不会出现在导出文件中（language-specific Word/CSV/PPTX exports）。
-- **自动备份** — 启动时立即备份 + 每日增量热备 + 每周完整 zip 压缩备份，配套命令行极速恢复工具
+- **自动备份** — 含聊天及操作记录的整库备份；每日增量记录附件新增、修改和删除，恢复使用完整基线及后续增量链。配套命令行预览与确认。
 
 ## 技术栈
 
@@ -94,7 +94,7 @@ AI_CHAT_MODEL = "gpt-4o"                        # 支持工具调用的聊天模
 python app.py
 ```
 
-访问 http://127.0.0.1:5000 ，输入密码登录。
+访问 http://127.0.0.1:5000 ，输入密码登录。debug 模式和自动重载默认关闭。
 
 ## 项目结构
 
@@ -164,47 +164,59 @@ m_B = m_A × (r_B / r_A) × (M_B / M_A)
 
 ## 备份与恢复
 
-系统支持两种备份策略并行运行：
+备份覆盖整个 SQLite 数据库：样品、聊天会话、消息及确认 / 取消 / 保存 / 撤销状态均包含在内。上传文件也会备份；Microsoft To Do 云端任务不属于本地备份范围。
 
-### 增量备份（每日）
+启动时先执行完整备份，再执行增量备份；之后默认每 24 小时增量、每 7 天完整备份。完整备份打包数据库及全部上传文件。每次增量保存完整数据库快照、附件新增 / 修改内容及删除记录，并记录所属完整基线和前序增量。首次使用或升级旧格式时，会先建立新的完整基线。
 
-启动时执行一次，之后每 24 小时自动运行。仅备份 `uploads/` 中新增/修改的文件，数据库每次通过 SQLite Online Backup API 完整快照。
+### 恢复规则
 
-### 完整备份（每周）
+恢复到某个备份时间点时，自动选择该时间点之前最近的完整备份，再按顺序应用之后的所有增量。也可指定完整备份，恢复到该基线所属恢复链的最后一个时间点（下一份完整备份之前），或明确指定链内目标。
 
-启动时执行一次，之后每 7 天自动运行。将**完整数据库 + 全部上传文件**打包为单个 zip 压缩文件。适合灾难恢复 — 从单个文件一键还原，无增量依赖链。
+工具先展示完整基线、增量顺序和覆盖目标，输入 `y` 后才执行。在临时目录重建文件并检查恢复链、文件及数据库，通过后替换目标数据，清除目标时间点之后残留的附件。缺失增量或备份损坏时会报错。
 
-**配置 (`config.py`):**
+**恢复前必须停止应用，恢复完成后重新启动。** 聊天操作的确认 / 撤销期限仍按原生成时间计算，恢复不会续期。
+
+### 配置
+
+`config.py.example` 已包含以下设置；已有部署请检查自己的 `config.py`：
+
 ```python
-# 增量备份
-BACKUP_INTERVAL_HOURS = 24           # 备份间隔（小时）
-BACKUP_KEEP_COUNT = 100000           # 增量备份最多保留数
-
-# 完整备份 (zip 压缩)
-FULL_BACKUP_INTERVAL_HOURS = 168     # 备份间隔（168小时 = 7天）
-FULL_BACKUP_KEEP_COUNT = 10          # 完整备份最多保留数
+BACKUP_FOLDER = os.path.join(BASE_DIR, "backups")
+FULL_BACKUP_FOLDER = os.path.join(BASE_DIR, "full_backups")
+BACKUP_INTERVAL_HOURS = 24
+BACKUP_KEEP_COUNT = 100000
+FULL_BACKUP_INTERVAL_HOURS = 168
+FULL_BACKUP_KEEP_COUNT = 10
 ```
+
+完整备份至少保留 1 份。增量数量是清理目标；仍被保留基线依赖的增量不会删除，因此可能暂时超过 `BACKUP_KEEP_COUNT`。转移备份时，应同时保留所需完整 zip 和之后的整段增量目录。
 
 ### 命令行工具
 
 ```bash
-# 查看所有备份（增量 + 完整）
+# 查看备份，复制实际时间戳 / 文件名
 python restore_backup.py list
 
-# 立即执行一次增量备份
+# 立即备份
 python restore_backup.py backup
-
-# 立即执行一次完整备份 (zip)
 python restore_backup.py full-backup
 
-# 交互式菜单（选择备份类型和操作）
+# 恢复到最新可用时间点：自动完整基线 + 后续增量
+python restore_backup.py restore
+
+# 恢复到指定时间点
+python restore_backup.py restore 2026-10-18_22-00-00_123456
+
+# 指定完整基线，叠加其恢复链内的后续增量
+python restore_backup.py full-restore full_2026-10-12_22-00-00_123456.zip
+
+# 指定完整基线和链内目标
+python restore_backup.py full-restore full_2026-10-12_22-00-00_123456.zip 2026-10-18_22-00-00_123456
+
+# 交互式菜单
 python restore_backup.py
-
-# 从增量备份恢复
-python restore_backup.py 2026-03-08_22-00-00
-
-# 从完整备份恢复
-python restore_backup.py full-restore full_2026-03-08_22-00-00.zip
 ```
 
-> ⚠️ 恢复后需重启应用才能生效。
+新备份时间戳包含微秒，以 `list` 输出为准。原来的 `python restore_backup.py <时间戳>` 命令和秒级旧时间戳仍可使用。
+
+旧格式备份在有完整基线时仍可读取；旧增量没有前序及删除记录，无法验证中间是否缺失，也无法还原当时未记录的附件删除，恢复前会提示该限制。新生成的恢复链包含这些记录。

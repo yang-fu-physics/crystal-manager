@@ -54,6 +54,14 @@ PHOTO_FOLDER = os.path.join(UPLOAD_FOLDER, "photos")
 EDX_FOLDER = os.path.join(UPLOAD_FOLDER, "edx")
 DATA_FOLDER = os.path.join(UPLOAD_FOLDER, "data")
 
-# 确保上传目录存在
-for folder in [PHOTO_FOLDER, EDX_FOLDER, DATA_FOLDER]:
+# 备份包含完整数据库（样品、聊天会话、消息、操作状态）及上传文件。
+BACKUP_FOLDER = os.path.join(BASE_DIR, "backups")
+FULL_BACKUP_FOLDER = os.path.join(BASE_DIR, "full_backups")
+BACKUP_INTERVAL_HOURS = 24
+BACKUP_KEEP_COUNT = 100000  # 正在使用的恢复链不会因数量限制被拆断
+FULL_BACKUP_INTERVAL_HOURS = 168
+FULL_BACKUP_KEEP_COUNT = 10
+
+# 确保上传和备份目录存在
+for folder in [PHOTO_FOLDER, EDX_FOLDER, DATA_FOLDER, BACKUP_FOLDER, FULL_BACKUP_FOLDER]:
     os.makedirs(folder, exist_ok=True)
