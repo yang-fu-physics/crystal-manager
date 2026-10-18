@@ -142,7 +142,7 @@ def test_turn_commit_rejects_changes_made_while_model_was_running(client, instal
 
     def reply(data, conversation_id):
         chat_history.transition(card, 'pending', 'cancelled')
-        return {'reply': 'outdated reply', 'proposal': None}
+        return {'reply': 'outdated reply', 'proposals': []}
 
     monkeypatch.setattr(ai_chat, 'chat', reply)
     result = client.post('/api/chat', json={

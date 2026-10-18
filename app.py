@@ -354,6 +354,7 @@ def sample_chat():
     result = ai_chat.chat({**data, 'messages': chat_history.model_messages(conversation, data['message'])},
                           conversation['id'])
     result['conversation'] = chat_history.append_turn(conversation, data['message'], result)
+    result['proposal'] = result['proposals'][0] if len(result['proposals']) == 1 else None
     return jsonify(result)
 
 

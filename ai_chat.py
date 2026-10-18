@@ -46,6 +46,15 @@ CHANGE_PROPERTIES = {
     'reference_mass': {'type': 'number', 'exclusiveMinimum': 0, 'maximum': 50,
                        'description': 'Grams of the selected reference element; never invent a weighing mass.'},
 }
+MAX_BATCH_SIZE = 20
+OPERATION_SCHEMA = {
+    'type': 'object', 'additionalProperties': False,
+    'properties': {'operation': {'type': 'string', 'enum': ['create', 'update']},
+                   'sample_id': {'type': 'string'},
+                   'changes': {'type': 'object', 'additionalProperties': False,
+                               'properties': CHANGE_PROPERTIES}},
+    'required': ['operation', 'sample_id', 'changes'],
+}
 TOOLS = [
     {'type': 'function', 'function': {
         'name': 'search_samples',
@@ -60,14 +69,25 @@ TOOLS = [
                        'properties': {'sample_id': {'type': 'string'}}, 'required': ['sample_id']},
     }},
     {'type': 'function', 'function': {
+        'name': 'read_samples',
+        'description': 'Read up to 20 exact sample IDs together before comparing or proposing batch updates. Reports missing IDs explicitly.',
+        'parameters': {'type': 'object', 'additionalProperties': False,
+                       'properties': {'sample_ids': {'type': 'array', 'minItems': 1, 'maxItems': MAX_BATCH_SIZE,
+                                                     'items': {'type': 'string'}, 'uniqueItems': True}},
+                       'required': ['sample_ids']},
+    }},
+    {'type': 'function', 'function': {
         'name': 'propose_sample_change',
         'description': 'Prepare ONE create or update for explicit operator confirmation. This tool NEVER writes data. Changes are a partial patch; omitted fields are preserved.',
+        'parameters': OPERATION_SCHEMA,
+    }},
+    {'type': 'function', 'function': {
+        'name': 'propose_sample_changes',
+        'description': 'Prepare up to 20 creates or updates, one per exact sample ID. Each gets its own confirmation and undo card. This tool NEVER writes data; omitted fields are preserved.',
         'parameters': {'type': 'object', 'additionalProperties': False,
-                       'properties': {'operation': {'type': 'string', 'enum': ['create', 'update']},
-                                      'sample_id': {'type': 'string'},
-                                      'changes': {'type': 'object', 'additionalProperties': False,
-                                                  'properties': CHANGE_PROPERTIES}},
-                       'required': ['operation', 'sample_id', 'changes']},
+                       'properties': {'operations': {'type': 'array', 'minItems': 1, 'maxItems': MAX_BATCH_SIZE,
+                                                    'items': OPERATION_SCHEMA}},
+                       'required': ['operations']},
     }},
 ]
 
@@ -254,8 +274,10 @@ def chat(data, conversation_id):
             if not message.tool_calls:
                 if not message.content or not message.content.strip():
                     raise BadGateway('AI 返回了空回复')
-                return {'reply': message.content.strip(), 'proposal': None}
+                return {'reply': message.content.strip(), 'proposals': []}
             messages.append(message.model_dump(exclude_none=True))
+            proposals = []
+            had_tool_error = False
             for call in message.tool_calls:
                 try:
                     arguments = json.loads(call.function.arguments)
@@ -281,19 +303,54 @@ def chat(data, conversation_id):
                         if sample is None:
                             raise NotFound('样品不存在')
                         result = sample_record(sample)
-                    elif name == 'propose_sample_change':
-                        if set(arguments) != {'operation', 'sample_id', 'changes'}:
+                    elif name == 'read_samples':
+                        if (set(arguments) != {'sample_ids'} or not isinstance(arguments['sample_ids'], list)
+                                or not 1 <= len(arguments['sample_ids']) <= MAX_BATCH_SIZE
+                                or any(not isinstance(value, str) or not value.strip() for value in arguments['sample_ids'])):
+                            raise BadRequest('请提供 1 到 20 个不重复的样品编号')
+                        ids = [value.strip() for value in arguments['sample_ids']]
+                        if len(set(ids)) != len(ids):
+                            raise BadRequest('样品编号不能重复')
+                        samples = [models.get_sample(value) for value in ids]
+                        result = {'samples': [sample_record(sample) for sample in samples if sample is not None],
+                                  'missing_ids': [value for value, sample in zip(ids, samples) if sample is None]}
+                    elif name in ('propose_sample_change', 'propose_sample_changes'):
+                        if name == 'propose_sample_change':
+                            operations = [arguments]
+                        elif set(arguments) == {'operations'}:
+                            operations = arguments['operations']
+                        else:
                             raise BadRequest('方案参数无效')
-                        proposal = prepare_change(**arguments, conversation_id=conversation_id)
-                        return {'reply': ('请核对下方方案；点击确认保存后才会写入。' if lang == 'zh'
-                                          else 'Review the changes below. Nothing is saved until you confirm.'),
-                                'proposal': proposal}
+                        if (not isinstance(operations, list) or not operations
+                                or len(proposals) + len(operations) > MAX_BATCH_SIZE):
+                            raise BadRequest('每次请为 1 到 20 个样品生成方案')
+                        prepared = []
+                        ids = {proposal['sample_id'] for proposal in proposals}
+                        for operation in operations:
+                            if not isinstance(operation, dict) or set(operation) != {'operation', 'sample_id', 'changes'}:
+                                raise BadRequest('方案参数无效')
+                            proposal = prepare_change(**operation, conversation_id=conversation_id)
+                            if proposal['sample_id'] in ids:
+                                raise BadRequest('同一批方案的样品编号不能重复')
+                            ids.add(proposal['sample_id'])
+                            prepared.append(proposal)
+                        proposals.extend(prepared)
+                        result = {'prepared_ids': [proposal['sample_id'] for proposal in prepared],
+                                  'saved': False}
                     else:
                         raise BadGateway('AI 请求了未支持的工具')
                 except (BadRequest, Conflict, NotFound) as exc:
+                    had_tool_error = True
                     result = {'error': exc.description}
                 messages.append({'role': 'tool', 'tool_call_id': call.id,
                                  'content': json.dumps(result, ensure_ascii=False)})
+            if proposals and not had_tool_error:
+                return {'reply': ('请逐个核对下方方案；每个样品点击确认保存后才会写入。' if lang == 'zh'
+                                  else 'Review each proposal below. Each sample is saved only after you confirm its card.'),
+                        'proposals': proposals}
+            if proposals:
+                messages.append({'role': 'system', 'content':
+                                 'Some tools failed. No proposal from this round was retained or saved. Correct the errors and prepare the complete set again.'})
     except OpenAIError as exc:
         current_app.logger.error('[AI chat] upstream failure: %s', type(exc).__name__)
         raise BadGateway('AI 服务请求失败，请检查接口配置后重试') from exc

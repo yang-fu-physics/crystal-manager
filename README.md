@@ -22,7 +22,7 @@ Enter molar ratios and a reference element's mass to calculate the required mass
 
 ### AI Assistant with Confirmation
 
-The assistant shows the exact proposed changes before the operator confirms each save. On phones and tablets it opens from the bottom of the screen.
+The assistant searches saved text and reads multiple exact sample IDs for comparison. It can prepare up to 20 creates or updates together, showing a separate confirmation and undo card for each sample. On phones and tablets it opens from the bottom of the screen.
 
 ![Desktop AI assistant with a before-and-after sintering schedule confirmation card](docs/screenshots/ai-assistant-desktop.jpg)
 

@@ -76,7 +76,6 @@ def model_messages(conversation, content):
 def append_turn(conversation, content, result):
     conn = models.get_db()
     now = config.get_local_now().isoformat()
-    proposal = result['proposal']
     try:
         conn.execute('BEGIN IMMEDIATE')
         updated = conn.execute(
@@ -89,14 +88,15 @@ def append_turn(conversation, content, result):
                      (conversation['id'],))
         conn.execute('INSERT INTO chat_messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
                      (uuid.uuid4().hex, conversation['id'], 'user', content, now))
-        conn.execute(
-            'INSERT INTO chat_messages (id, conversation_id, role, content, proposal, proposal_token, proposal_expires, state, created_at) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            (uuid.uuid4().hex, conversation['id'], 'assistant', result['reply'],
-             json.dumps(proposal, ensure_ascii=False) if proposal is not None else None,
-             proposal['token'] if proposal is not None else None,
-             time.time() + 1800 if proposal is not None else None,
-             'pending' if proposal is not None else 'complete', now))
+        for index, proposal in enumerate(result['proposals'] or [None]):
+            conn.execute(
+                'INSERT INTO chat_messages (id, conversation_id, role, content, proposal, proposal_token, proposal_expires, state, created_at) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (uuid.uuid4().hex, conversation['id'], 'assistant', result['reply'] if index == 0 else '',
+                 json.dumps(proposal, ensure_ascii=False) if proposal is not None else None,
+                 proposal['token'] if proposal is not None else None,
+                 time.time() + 1800 if proposal is not None else None,
+                 'pending' if proposal is not None else 'complete', now))
         conn.commit()
     finally:
         conn.close()
