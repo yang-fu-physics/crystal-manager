@@ -1,6 +1,6 @@
 .ai-chat-panel[hidden], .ai-chat-backdrop[hidden] { display: none; }
 .ai-chat-panel {
-    flex: 0 0 360px;
+    flex: 0 0 var(--ai-chat-width, 360px);
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -30,7 +30,7 @@
 .ai-chat-button:hover { border-color: var(--accent); }
 .ai-chat-button:disabled { cursor: default; opacity: .55; }
 .ai-chat-button.ai-chat-primary { background: var(--accent); border-color: var(--accent); color: white; }
-.ai-chat-panel :focus-visible, .ai-chat-launcher:focus-visible { outline: 3px solid #a49af2; outline-offset: 3px; }
+.ai-chat-panel :focus-visible, .ai-chat-launcher:focus-visible, .ai-chat-resizer:focus-visible { outline: 3px solid #a49af2; outline-offset: 3px; }
 .ai-chat-proposal { border: 1px solid #d9d3fa; border-radius: 12px; padding: 14px; margin-bottom: 16px; background: #fdfcff; }
 .ai-chat-proposal h3 { font-size: 15px; margin-bottom: 5px; overflow-wrap: anywhere; }
 .ai-chat-proposal-note { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
@@ -49,7 +49,12 @@
 .ai-chat-key-hint { font-size: 11px; color: var(--text-muted); margin-top: 7px; }
 .ai-chat-launcher { position: fixed; right: 20px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 200; background: var(--accent); color: white; border: 0; border-radius: 28px; padding: 13px 20px; box-shadow: var(--shadow-lg); font: inherit; font-size: 16px; cursor: pointer; }
 body.ai-chat-open .ai-chat-launcher { display: none; }
+.ai-chat-resizer { display: none; }
+body.ai-chat-resizing, body.ai-chat-resizing * { cursor: col-resize !important; user-select: none !important; }
 @media (min-width: 1351px) {
+    body.ai-chat-open .ai-chat-resizer { display: block; flex: 0 0 8px; position: relative; cursor: col-resize; touch-action: none; }
+    .ai-chat-resizer::after { content: ''; position: absolute; left: 3px; top: 50%; width: 2px; height: 48px; border-radius: 2px; background: var(--border-hover); transform: translateY(-50%); }
+    .ai-chat-resizer:hover::after, .ai-chat-resizer:focus-visible::after, body.ai-chat-resizing .ai-chat-resizer::after { background: var(--accent); }
     body.ai-chat-open .main-panel { container-type: inline-size; container-name: sample-panel; }
     .ai-chat-backdrop { display: none; }
 }

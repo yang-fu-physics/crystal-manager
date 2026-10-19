@@ -2,6 +2,7 @@
 const chatCopy = {
     zh: {
         title: 'AI 样品助手', close: '收起助手', history: '聊天记录',
+        resize: '调整助手宽度（方向键调节，双击恢复默认）',
         notice: '支持检索及批量操作；每个样品分别确认保存。',
         inputLabel: '告诉助手要查找或修改什么', placeholder: '例如：把当前样品的烧制耗时改为 72 小时',
         reset: '新建会话', sessions: '历史会话（已登录设备共享）', refresh: '刷新会话',
@@ -26,6 +27,7 @@ const chatCopy = {
     },
     en: {
         title: 'AI Sample Assistant', close: 'Close assistant', history: 'Chat history',
+        resize: 'Resize assistant (arrow keys to adjust, double-click to reset)',
         notice: 'Search and batch operations. Confirm each sample separately.',
         inputLabel: 'What would you like to find or change?', placeholder: 'For example: change this sample’s sintering duration to 72 hours',
         reset: 'New conversation', sessions: 'History (shared by signed-in devices)', refresh: 'Refresh conversations',
@@ -60,6 +62,7 @@ const chatFields = {
     has_xrd: ['XRD', 'XRD'], has_edx: ['EDX', 'EDX'], has_pdf: ['PDF', 'PDF'],
 };
 const chatPanel = document.getElementById('aiChatPanel');
+const chatResizer = document.getElementById('aiChatResizer');
 const chatLauncher = document.getElementById('aiChatToggle');
 const chatBackdrop = document.getElementById('aiChatBackdrop');
 const chatMessages = document.getElementById('aiChatMessages');
@@ -73,6 +76,10 @@ const chatSmallScreen = window.matchMedia('(max-width: 1350px)');
 let chatConversation = null;
 let chatConversationList = [];
 let chatBusy = false;
+const rememberedChatWidth = localStorage.getItem('crystal-chat-width');
+let chatWidth = rememberedChatWidth === null ? 360 : Number(rememberedChatWidth);
+if (!Number.isFinite(chatWidth)) chatWidth = 360;
+let chatResizeStart = null;
 
 function chatText(key) { return chatCopy[currentLang][key]; }
 function chatElement(tag, className, text) {
@@ -107,6 +114,21 @@ function setChatOpen(open) {
     updateChatContext();
     if (open) chatInput.focus({preventScroll: true});
     else chatLauncher.focus({preventScroll: true});
+}
+function setChatWidth(width, remember = false) {
+    const maximum = chatSmallScreen.matches ? 720 : Math.min(720, Math.floor(window.innerWidth * .4));
+    chatWidth = Math.round(Math.max(320, Math.min(maximum, width)));
+    chatPanel.style.setProperty('--ai-chat-width', chatWidth + 'px');
+    chatResizer.setAttribute('aria-valuemin', '320');
+    chatResizer.setAttribute('aria-valuemax', String(maximum));
+    chatResizer.setAttribute('aria-valuenow', String(chatWidth));
+    if (remember) localStorage.setItem('crystal-chat-width', String(chatWidth));
+}
+function finishChatResize(event) {
+    if (!chatResizeStart || event.pointerId !== chatResizeStart.pointerId) return;
+    chatResizeStart = null;
+    document.body.classList.remove('ai-chat-resizing');
+    setChatWidth(chatWidth, true);
 }
 function scrollChat() { chatMessages.scrollTop = chatMessages.scrollHeight; }
 function setChatBusy(busy, status = '') {
@@ -330,6 +352,29 @@ async function initializeChat() {
         appendChatMessage('assistant', error.message, true);
     } finally { setChatBusy(false); }
 }
+chatResizer.addEventListener('pointerdown', event => {
+    if (chatSmallScreen.matches || event.button !== 0 || chatResizeStart) return;
+    event.preventDefault();
+    chatResizer.focus({preventScroll: true});
+    chatResizeStart = {pointerId: event.pointerId, x: event.clientX, width: chatWidth};
+    chatResizer.setPointerCapture(event.pointerId);
+    document.body.classList.add('ai-chat-resizing');
+});
+chatResizer.addEventListener('pointermove', event => {
+    if (chatResizeStart && event.pointerId === chatResizeStart.pointerId && !chatSmallScreen.matches) {
+        setChatWidth(chatResizeStart.width + chatResizeStart.x - event.clientX);
+    }
+});
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => chatResizer.addEventListener(type, finishChatResize));
+chatResizer.addEventListener('keydown', event => {
+    if (chatSmallScreen.matches) return;
+    const widths = {ArrowLeft: chatWidth + 20, ArrowRight: chatWidth - 20, Home: 320, End: 720};
+    if (!(event.key in widths)) return;
+    event.preventDefault();
+    setChatWidth(widths[event.key], true);
+});
+chatResizer.addEventListener('dblclick', () => { if (!chatSmallScreen.matches) setChatWidth(360, true); });
+window.addEventListener('resize', () => setChatWidth(chatWidth));
 chatLauncher.addEventListener('click', () => setChatOpen(true));
 document.getElementById('aiChatClose').addEventListener('click', () => setChatOpen(false));
 chatBackdrop.addEventListener('click', () => setChatOpen(false));
@@ -376,7 +421,11 @@ chatPanel.addEventListener('keydown', event => {
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
 });
-chatSmallScreen.addEventListener('change', () => setChatOpen(!chatPanel.hidden));
+chatSmallScreen.addEventListener('change', () => {
+    if (chatResizeStart) finishChatResize(chatResizeStart);
+    setChatOpen(!chatPanel.hidden);
+});
+setChatWidth(chatWidth);
 updateChatLanguage();
 if (!chatSmallScreen.matches) {
     chatPanel.hidden = false;
