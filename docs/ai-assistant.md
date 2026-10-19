@@ -14,9 +14,19 @@ AI_CHAT_BASE_URL = "https://api.openai.com/v1/"
 AI_CHAT_MODEL = "gpt-4o"
 ```
 
-聊天模型必须支持 OpenAI 兼容的 Chat Completions **function/tool calling**。密钥只在服务端使用。接口失败时显示错误，不切换模型或使用识别服务的配置。
+聊天模型必须支持 OpenAI 兼容的 Chat Completions **function/tool calling**；解读图片还需支持 **图像输入**。密钥只在服务端使用。接口失败时显示错误，不切换模型或使用识别服务的配置。
 
-使用聊天会把当前会话的近期对话、当前选中的已保存样品及工具读取到的样品字段发送给所配置的模型服务。不会发送未保存的表单草稿、附件内容、本地文件路径或确认 / 撤销凭据。
+使用聊天会把当前会话的近期对话、当前选中的已保存样品及工具读取到的样品字段发送给所配置的模型服务。请求解读图片时，还会发送被读取的图片内容；普通文字查询不自动发送图片。不会发送未保存的表单草稿、非图片附件内容、本地文件路径或确认 / 撤销凭据。
+
+## 解读已保存图片
+
+可直接要求“解读当前样品的 EDX 图片”“查看 CG-001 的实物照片”“比较 CG-001 和 CG-002 的 XRD 图片”。助手先列出已有图片，再按样品编号、附件区和图片 ID 读取。支持实物照片、EDX、XRD，以及数据 / 其他附件区中的图片；聊天框不新增上传入口。
+
+支持 PNG、JPEG、WEBP、GIF、BMP 和 TIFF，每轮最多读取 10 张，单图最多 20 MB、2500 万像素。发送前在内存中处理方向和透明背景，最长边缩至不超过 2048 px，使用首帧 / 首页；原图不修改。PDF、原始 XRD 数据、文本等非图片附件不通过此工具读取。
+
+回复末尾注明本轮成功读取的样品、附件区、图片 ID 和原文件名。历史保留解读文字及这些引用，不保存图片编码；后续追问时可重新读取原图。原图及附件元数据继续由既有备份覆盖，无需额外复制图片。
+
+图片解读本身不修改样品，也不覆盖 EDX 区已有识别数据。要求把观察写入备注 / 结果时，先展示具体变更，逐样品确认后才保存。看不清的标注会说明不确定性；图像解读不能代替原始数据分析或实验结论。
 
 ## 新建会话与历史会话
 
@@ -77,6 +87,8 @@ AI_CHAT_MODEL = "gpt-4o"
 | `search_samples` | 分页搜索已保存样品，每页 20 项 |
 | `read_sample` | 读取指定样品的字段，不含附件内容或路径 |
 | `read_samples` | 一次精确读取最多 10 个编号，明确列出缺失编号 |
+| `list_sample_images` | 列出样品各附件区中的图片 ID 和文件名，不发送像素 |
+| `read_sample_image` | 读取指定样品的指定图片，每轮最多 10 张，只读 |
 | `propose_sample_change` | 生成一个样品的待确认方案，不执行写入 |
 | `propose_sample_changes` | 为最多 10 个编号生成独立确认卡，不执行写入 |
 | `GET /api/chat/conversations` | 读取共享历史列表，需登录 |
@@ -87,9 +99,9 @@ AI_CHAT_MODEL = "gpt-4o"
 | `POST /api/chat/confirm` | 需登录；校验签名、会话、有效期和样品版本后保存 |
 | `POST /api/chat/undo` | 需操作者确认；校验撤销凭据及保存后的版本，恢复修改前字段或撤回新建 |
 
-没有向模型提供删除、任意代码执行、文件系统或直接写库工具。确认保存复用普通表单的样品保存逻辑，保留现有 Microsoft To Do 同步行为。
+没有向模型提供删除、任意代码执行、任意文件系统访问或直接写库工具。确认保存复用普通表单的样品保存逻辑，保留现有 Microsoft To Do 同步行为。
 
-工具调用协议参考 [OpenAI 官方 Function calling 文档](https://developers.openai.com/api/docs/guides/function-calling)。
+工具调用协议参考 [OpenAI 官方 Function calling 文档](https://developers.openai.com/api/docs/guides/function-calling)，图片输入格式参考 [OpenAI Docs：Images and vision](https://developers.openai.com/api/docs/guides/images-vision)。
 
 ## 验证
 
@@ -98,4 +110,4 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-`tests/test_ai_chat.py`、`tests/test_ai_batch.py` 和 `tests/test_chat_history.py` 覆盖单个及批量方案、文字检索与分页、多编号读取、逐次确认、局部更新、时间和质量计算、过期 / 篡改 / 重复操作、并发修改、撤销、附件保护、To Do 提醒、持久历史、跨设备续聊、卡片恢复、版本冲突和上下文边界。运行测试时使用独立临时数据库，不依赖真实模型或个人配置。
+`tests/test_ai_chat.py`、`tests/test_ai_batch.py`、`tests/test_ai_images.py` 和 `tests/test_chat_history.py` 覆盖单个及批量方案、文字检索与分页、多编号读取、保存图片读取及来源记录、图像格式与边界限制、读图后逐次确认、局部更新、时间和质量计算、过期 / 篡改 / 重复操作、并发修改、撤销、附件保护、To Do 提醒、持久历史、跨设备续聊、卡片恢复、版本冲突和上下文边界。运行测试时使用独立临时数据库，不依赖真实模型或个人配置。

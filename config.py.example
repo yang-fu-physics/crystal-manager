@@ -36,7 +36,7 @@ OPENAI_BASE_URL = "https://api.openai.com/v1/"  # 代理地址
 OPENAI_MODEL = "gpt-4o"
 
 # ============================================================
-# AI 聊天助手的独立 API 配置（模型须支持工具调用）
+# AI 聊天助手的独立 API 配置（模型须支持工具调用；解图还需支持图像输入）
 # ============================================================
 AI_CHAT_API_KEY = "sk-your-chat-api-key-here"
 AI_CHAT_BASE_URL = "https://api.openai.com/v1/"  # 聊天接口地址
