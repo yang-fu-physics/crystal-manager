@@ -29,6 +29,7 @@ def init_db():
             is_successful INTEGER DEFAULT 2,
             has_electric INTEGER DEFAULT 0,
             has_magnetic INTEGER DEFAULT 0,
+            has_specific_heat INTEGER DEFAULT 0,
             has_xrd INTEGER DEFAULT 0,
             has_edx INTEGER DEFAULT 0,
 has_pdf INTEGER DEFAULT 0,
@@ -144,6 +145,9 @@ has_pdf INTEGER DEFAULT 0,
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE samples ADD COLUMN has_electric INTEGER DEFAULT 0")
         cursor.execute("ALTER TABLE samples ADD COLUMN has_magnetic INTEGER DEFAULT 0")
+
+    if 'has_specific_heat' not in {row['name'] for row in cursor.execute('PRAGMA table_info(samples)')}:
+        cursor.execute('ALTER TABLE samples ADD COLUMN has_specific_heat INTEGER DEFAULT 0')
 
     # Dynamic migration for has_xrd and has_edx
     try:
@@ -303,17 +307,18 @@ def create_sample(data):
     conn = get_db()
     try:
         conn.execute(
-            """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, has_xrd, has_edx, has_pdf, growth_process, growth_process_en,
+            """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, has_specific_heat, has_xrd, has_edx, has_pdf, growth_process, growth_process_en,
                element_ratios, actual_masses, notes, results, results_en,
                sintering_start, sintering_duration, sintering_end,
                created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 data['id'],
                 data.get('target_product', ''),
                 data.get('status', 2),
                 data.get('has_electric', 0),
                 data.get('has_magnetic', 0),
+                data.get('has_specific_heat', 0),
                 data.get('has_xrd', 0),
                 data.get('has_edx', 0),
             data.get('has_pdf', 0),
@@ -360,12 +365,12 @@ def update_sample(sample_id, data, expected_sample=None):
             conn.execute("BEGIN TRANSACTION")
             
             conn.execute(
-                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
+                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_specific_heat=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?, results_en=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
                    updated_at=?
                    WHERE id=?""",
-                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
+                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_specific_heat', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
             data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
             )
             
@@ -406,12 +411,12 @@ def update_sample(sample_id, data, expected_sample=None):
             conn.execute("PRAGMA foreign_keys = ON")
         else:
             conn.execute(
-                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
+                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_specific_heat=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?, results_en=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
                    updated_at=?
                    WHERE id=?""",
-                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
+                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_specific_heat', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
             data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
             )
             conn.commit()

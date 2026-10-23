@@ -67,6 +67,7 @@ experimental conditions, weighing mass, measurement flags, or results.
   local time to resolve unambiguous relative dates; ask about ambiguous times.
 - Status: 0 Fail, 1 Success, 2 Pending, 3 Growing, 4 Done. Measurement/file flags
   are 0/1 and must reflect the operator's statements, not your predictions.
+  `has_specific_heat` is the specific-heat measurement flag (比热测量).
 
 ## Changing ratios and masses
 

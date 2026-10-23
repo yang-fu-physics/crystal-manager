@@ -77,7 +77,7 @@ def test_full_plus_incrementals_restore_chat_records_states_and_exact_files(back
     undone, _ = propose(client, install_ai, {'notes': 'undo this'}, operation='create', sample_id='UNDO-BACKUP')
     to_undo = client.post('/api/chat/confirm', json={'token': undone['token']}).get_json()
     assert client.post('/api/chat/undo', json={'token': to_undo['undo_token']}).status_code == 200
-    models.update_sample('TEST-001', {'notes': 'second incremental'})
+    models.update_sample('TEST-001', {'notes': 'second incremental', 'has_specific_heat': 1})
     upload('changed.txt', b'final version')
     transient.unlink()
     upload('final.txt', b'last addition')

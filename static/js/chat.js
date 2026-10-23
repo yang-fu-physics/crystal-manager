@@ -59,6 +59,7 @@ const chatFields = {
     sintering_duration: ['烧制耗时（小时）', 'Duration (hours)'], sintering_end: ['烧制结束时间', 'Sintering end'],
     element_ratios: ['元素摩尔比', 'Element ratios'], actual_masses: ['称量质量', 'Weighing masses'],
     has_electric: ['电学测量', 'Electric'], has_magnetic: ['磁性测量', 'Magnetic'],
+    has_specific_heat: ['比热测量', 'Specific heat'],
     has_xrd: ['XRD', 'XRD'], has_edx: ['EDX', 'EDX'], has_pdf: ['PDF', 'PDF'],
 };
 const chatPanel = document.getElementById('aiChatPanel');

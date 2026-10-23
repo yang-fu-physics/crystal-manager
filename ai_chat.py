@@ -24,7 +24,7 @@ TEXT_FIELDS = (
     'target_product', 'growth_process', 'growth_process_en',
     'results', 'results_en', 'notes',
 )
-FLAG_FIELDS = ('has_electric', 'has_magnetic', 'has_xrd', 'has_edx', 'has_pdf')
+FLAG_FIELDS = ('has_electric', 'has_magnetic', 'has_specific_heat', 'has_xrd', 'has_edx', 'has_pdf')
 STORED_FIELDS = (*TEXT_FIELDS, *FLAG_FIELDS, 'element_ratios', 'actual_masses',
                  'sintering_start', 'sintering_duration', 'sintering_end')
 CHANGE_PROPERTIES = {

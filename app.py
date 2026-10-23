@@ -1260,6 +1260,7 @@ def export_sample_word(sample_id):
     measurements = []
     if sample.get('has_electric'): measurements.append('电学' if lang == 'zh' else 'Electric')
     if sample.get('has_magnetic'): measurements.append('磁性' if lang == 'zh' else 'Magnetic')
+    if sample.get('has_specific_heat'): measurements.append('比热' if lang == 'zh' else 'Specific heat')
     if sample.get('has_xrd'): measurements.append('XRD')
     if sample.get('has_edx'): measurements.append('EDX')
     none_str = '无' if lang == 'zh' else 'None'
