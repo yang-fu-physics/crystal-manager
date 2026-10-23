@@ -110,6 +110,13 @@ has_pdf INTEGER DEFAULT 0,
         );
         CREATE INDEX IF NOT EXISTS chat_messages_conversation ON chat_messages(conversation_id);
 
+        CREATE TABLE IF NOT EXISTS chat_images (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+            filename TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS chat_images_message ON chat_images(message_id);
+
     """)
 
     # Dynamic migration for other_files (backwards compatibility)

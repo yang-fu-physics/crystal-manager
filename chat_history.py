@@ -1,6 +1,7 @@
 """Shared, authenticated chat history and persistent operation-card states."""
 
 import json
+from pathlib import Path
 import time
 import uuid
 
@@ -29,6 +30,15 @@ def get_conversation(conversation_id):
         conversation = dict(row)
         messages = [dict(row) for row in conn.execute(
             'SELECT * FROM chat_messages WHERE conversation_id = ? ORDER BY rowid', (conversation_id,))]
+        by_id = {message['id']: message for message in messages}
+        for message in messages:
+            message['images'] = []
+        for image in conn.execute(
+                'SELECT i.* FROM chat_images i JOIN chat_messages m ON m.id = i.message_id '
+                'WHERE m.conversation_id = ? ORDER BY i.rowid', (conversation_id,)):
+            by_id[image['message_id']]['images'].append({
+                'id': image['id'], 'filename': image['filename'], 'url': '/api/chat/images/' + image['id'],
+            })
     finally:
         conn.close()
     now = time.time()
@@ -53,12 +63,33 @@ def create_conversation():
     return get_conversation(conversation_id)
 
 
+def get_image(image_id):
+    conn = models.get_db()
+    try:
+        row = conn.execute(
+            'SELECT i.id, i.filename, m.conversation_id FROM chat_images i '
+            'JOIN chat_messages m ON m.id = i.message_id WHERE i.id = ?', (image_id,)).fetchone()
+        if row is None:
+            raise NotFound('会话图片不存在')
+        return dict(row)
+    finally:
+        conn.close()
+
+
+def image_path(image_id):
+    return Path(config.UPLOAD_FOLDER) / '_chat_images' / (image_id + '.jpg')
+
+
 def model_messages(conversation, content):
     """Keep full UI history, but send only the recent context within the API budget."""
     history = [{'role': 'user', 'content': content}]
     size = len(content)
     for message in reversed(conversation['messages']):
         text = message['content']
+        if message['images']:
+            text += '\nChat images (use read_chat_image to inspect pixels): ' + json.dumps([
+                {'image_id': image['id'], 'filename': image['filename']} for image in message['images']
+            ], ensure_ascii=False)
         if message['proposal'] is not None:
             proposal = message['proposal']
             text += '\nOperation card state: ' + message['state'] + '\n' + json.dumps({
@@ -73,7 +104,7 @@ def model_messages(conversation, content):
     return list(reversed(history))
 
 
-def append_turn(conversation, content, result):
+def append_turn(conversation, content, result, images=()):
     conn = models.get_db()
     now = config.get_local_now().isoformat()
     try:
@@ -86,8 +117,11 @@ def append_turn(conversation, content, result):
             raise Conflict('会话已在其他页面更新，请重新加载后继续')
         conn.execute("UPDATE chat_messages SET state = 'superseded' WHERE conversation_id = ? AND state = 'pending'",
                      (conversation['id'],))
+        message_id = uuid.uuid4().hex
         conn.execute('INSERT INTO chat_messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
-                     (uuid.uuid4().hex, conversation['id'], 'user', content, now))
+                     (message_id, conversation['id'], 'user', content, now))
+        conn.executemany('INSERT INTO chat_images (id, message_id, filename) VALUES (?, ?, ?)',
+                         [(image['id'], message_id, image['filename']) for image in images])
         for index, proposal in enumerate(result['proposals'] or [None]):
             conn.execute(
                 'INSERT INTO chat_messages (id, conversation_id, role, content, proposal, proposal_token, proposal_expires, state, created_at) '

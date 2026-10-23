@@ -8,6 +8,7 @@ import base64
 import json
 import time
 import csv
+from pathlib import Path
 from io import BytesIO, StringIO
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template, send_from_directory, send_file, session, redirect, url_for
@@ -339,7 +340,22 @@ def chat_conversation(conversation_id):
 
 @app.route('/api/chat', methods=['POST'])
 def sample_chat():
-    data = request.get_json(silent=True)
+    files = []
+    if request.mimetype == 'multipart/form-data':
+        data = request.form.to_dict()
+        if set(request.files) - {'images'}:
+            raise BadRequest('仅支持 images 图片附件')
+        files = request.files.getlist('images')
+        if len(files) > ai_chat.MAX_IMAGES_PER_TURN:
+            raise BadRequest('每轮最多上传 10 张图片，请分批解读')
+        try:
+            data['revision'] = int(data.get('revision', ''))
+        except ValueError as exc:
+            raise BadRequest('会话版本无效') from exc
+        if files and not data.get('message', '').strip():
+            data['message'] = 'Please interpret these images.' if data.get('lang') == 'en' else '请解读这些图片。'
+    else:
+        data = request.get_json(silent=True)
     if (not isinstance(data, dict)
             or set(data) - {'conversation_id', 'revision', 'message', 'sample_id', 'lang'}
             or not isinstance(data.get('message'), str) or not data['message'].strip()
@@ -351,11 +367,39 @@ def sample_chat():
         raise Conflict('会话已在其他页面更新，请重新加载后继续')
     if any(message['state'] in ('confirming', 'undoing') for message in conversation['messages']):
         raise Conflict('此会话有保存或撤销操作正在处理，请重新加载后核对')
-    result = ai_chat.chat({**data, 'messages': chat_history.model_messages(conversation, data['message'])},
+    images = []
+    for file in files:
+        filename = file.filename.replace('\\', '/').rsplit('/', 1)[-1]
+        if not filename or len(filename) > 255 or Path(filename).suffix.lower() not in ai_chat.IMAGE_EXTENSIONS:
+            raise BadRequest('请上传 PNG、JPEG、WEBP、GIF、BMP 或 TIFF 图片，文件名不超过 255 字符')
+        images.append({'id': uuid.uuid4().hex, 'filename': filename, 'jpeg': ai_chat.image_jpeg(file.stream)})
+    result = ai_chat.chat({**data, 'messages': chat_history.model_messages(conversation, data['message']), 'images': images},
                           conversation['id'])
-    result['conversation'] = chat_history.append_turn(conversation, data['message'], result)
+    written = []
+    saved = False
+    try:
+        for image in images:
+            path = chat_history.image_path(image['id'])
+            path.parent.mkdir(parents=True, exist_ok=True)
+            written.append(path)
+            path.write_bytes(image['jpeg'])
+        result['conversation'] = chat_history.append_turn(conversation, data['message'], result, images)
+        saved = True
+    finally:
+        if not saved:
+            for path in written:
+                path.unlink(missing_ok=True)
     result['proposal'] = result['proposals'][0] if len(result['proposals']) == 1 else None
     return jsonify(result)
+
+
+@app.route('/api/chat/images/<image_id>', methods=['GET'])
+def chat_image(image_id):
+    image = chat_history.get_image(image_id)
+    path = chat_history.image_path(image['id'])
+    response = send_from_directory(str(path.parent), path.name, mimetype='image/jpeg', max_age=0)
+    response.cache_control.no_store = True
+    return response
 
 
 @app.route('/api/chat/cancel', methods=['POST'])

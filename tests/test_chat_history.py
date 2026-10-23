@@ -174,7 +174,7 @@ def test_next_turn_supersedes_old_proposal_with_a_unique_token(client, install_a
 
 def test_model_context_uses_recent_budget_while_full_history_remains_available():
     conversation = {'messages': [
-        {'role': 'user' if index % 2 == 0 else 'assistant', 'content': str(index) + 'x' * 15000, 'proposal': None}
+        {'role': 'user' if index % 2 == 0 else 'assistant', 'content': str(index) + 'x' * 15000, 'proposal': None, 'images': []}
         for index in range(40)
     ]}
     result = chat_history.model_messages(conversation, 'latest question')

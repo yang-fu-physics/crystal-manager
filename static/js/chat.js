@@ -3,14 +3,18 @@ const chatCopy = {
     zh: {
         title: 'AI 样品助手', close: '收起助手', history: '聊天记录',
         resize: '调整助手宽度（方向键调节，双击恢复默认）',
-        notice: '支持检索和已存图片解读；每个样品分别确认保存。',
+        notice: '支持上传、粘贴和读取已存图片；每个样品分别确认保存。',
         inputLabel: '告诉助手要查找或修改什么', placeholder: '例如：把当前样品的烧制耗时改为 72 小时',
         reset: '新建会话', sessions: '历史会话（已登录设备共享）', refresh: '刷新会话',
         loading: '正在加载会话…', expired: '方案已过期，请重新提出要求。',
         undoExpired: '已保存，撤销期限已过。', processing: '操作处理中；若结果未确认，请重新加载并核对样品。',
-        send: '发送', keyHint: 'Enter 发送 · Shift + Enter 换行',
+        send: '发送', attach: '添加图片', removeImage: '移除图片', imagePrompt: '请解读这些图片。',
+        imageHint: '可粘贴图片；最多 10 张，每张 20 MiB，请求总计 100 MiB。图片随会话保存，不会自动加入样品附件。',
+        imageLimit: '每次最多添加 10 张图片。', imageSize: '每张图片不能超过 20 MiB。',
+        imageType: '支持 PNG、JPG、WebP、GIF、BMP、TIF 和 TIFF 图片。',
+        keyHint: 'Enter 发送 · Shift + Enter 换行',
         context: '当前样品：', none: '未选择', draft: '新建草稿（尚未保存）',
-        welcome: '可以检索、比较样品，解读已保存的照片、EDX 或 XRD 图片，并批量新建或修改制度、时间和比例。每次最多 10 个编号，每个样品分别核对、确认及撤销。',
+        welcome: '可以上传或粘贴图片，解读已保存的照片、EDX 或 XRD 图片，检索、比较样品，并批量新建或修改制度、时间和比例。每次最多 10 个编号，每个样品分别核对、确认及撤销。',
         examples: ['列出最近的样品', '解读当前样品的 EDX 图片', '将 CG-001、CG-002 的烧制耗时改为 72 小时'],
         user: '你', assistant: '助手', thinking: '正在读取样品并生成回复…', saving: '正在保存已确认的变更…',
         create: '待确认：新建样品 ', update: '待确认：修改样品 ', before: '修改前', after: '修改后',
@@ -28,14 +32,18 @@ const chatCopy = {
     en: {
         title: 'AI Sample Assistant', close: 'Close assistant', history: 'Chat history',
         resize: 'Resize assistant (arrow keys to adjust, double-click to reset)',
-        notice: 'Search and read saved images. Confirm each sample separately.',
+        notice: 'Upload, paste or read saved images. Confirm each sample separately.',
         inputLabel: 'What would you like to find or change?', placeholder: 'For example: change this sample’s sintering duration to 72 hours',
         reset: 'New conversation', sessions: 'History (shared by signed-in devices)', refresh: 'Refresh conversations',
         loading: 'Loading conversation…', expired: 'Proposal expired. Describe your request again.',
         undoExpired: 'Saved. The undo period has expired.', processing: 'Operation processing. Reload and check the sample if the result is unknown.',
-        send: 'Send', keyHint: 'Enter to send · Shift + Enter for a new line',
+        send: 'Send', attach: 'Add images', removeImage: 'Remove image', imagePrompt: 'Please interpret these images.',
+        imageHint: 'Paste images: up to 10, 20 MiB each, 100 MiB per request. Images stay in this chat; they are not automatically added to sample attachments.',
+        imageLimit: 'Attach up to 10 images per message.', imageSize: 'Each image must be 20 MiB or smaller.',
+        imageType: 'Supported images: PNG, JPG, WebP, GIF, BMP, TIF and TIFF.',
+        keyHint: 'Enter to send · Shift + Enter for a new line',
         context: 'Current sample: ', none: 'None selected', draft: 'New draft (not saved)',
-        welcome: 'Find and compare samples, interpret saved photos, EDX or XRD images, and create or update records in batches of up to 10 IDs. Review, confirm and undo each sample separately.',
+        welcome: 'Upload or paste images, interpret saved photos, EDX or XRD images, find and compare samples, and create or update records in batches of up to 10 IDs. Review, confirm and undo each sample separately.',
         examples: ['List recent samples', 'Interpret this sample’s saved EDX images', 'Change sintering duration to 72 hours for CG-001 and CG-002'],
         user: 'You', assistant: 'Assistant', thinking: 'Reading samples and preparing a reply…', saving: 'Saving your confirmed changes…',
         create: 'Confirm new sample: ', update: 'Confirm sample update: ', before: 'Before', after: 'After',
@@ -70,6 +78,9 @@ const chatMessages = document.getElementById('aiChatMessages');
 const chatInput = document.getElementById('aiChatInput');
 const chatSend = document.getElementById('aiChatSend');
 const chatReset = document.getElementById('aiChatReset');
+const chatAttach = document.getElementById('aiChatAttach');
+const chatImageInput = document.getElementById('aiChatImageInput');
+const chatImagePreviews = document.getElementById('aiChatImagePreviews');
 const chatConversations = document.getElementById('aiChatConversations');
 const chatRefresh = document.getElementById('aiChatRefresh');
 const chatStatus = document.getElementById('aiChatStatus');
@@ -77,6 +88,7 @@ const chatSmallScreen = window.matchMedia('(max-width: 1350px)');
 let chatConversation = null;
 let chatConversationList = [];
 let chatBusy = false;
+let chatPendingImages = [];
 const rememberedChatWidth = localStorage.getItem('crystal-chat-width');
 let chatWidth = rememberedChatWidth === null ? 360 : Number(rememberedChatWidth);
 if (!Number.isFinite(chatWidth)) chatWidth = 360;
@@ -98,6 +110,7 @@ function updateChatLanguage() {
     document.querySelectorAll('[data-chat-i18n-label]').forEach(el => { el.setAttribute('aria-label', chatText(el.dataset.chatI18nLabel)); });
     document.querySelectorAll('[data-chat-i18n-placeholder]').forEach(el => { el.placeholder = chatText(el.dataset.chatI18nPlaceholder); });
     updateChatContext();
+    renderPendingChatImages();
     renderChatConversations();
     if (chatConversation) renderChatConversation();
     else if (!chatBusy) showChatWelcome();
@@ -139,6 +152,8 @@ function setChatBusy(busy, status = '') {
     chatConversations.disabled = busy;
     chatRefresh.disabled = busy;
     chatInput.disabled = busy || !chatConversation;
+    chatAttach.disabled = chatImageInput.disabled = busy || !chatConversation;
+    chatImagePreviews.querySelectorAll('button').forEach(button => { button.disabled = busy; });
     chatStatus.textContent = status;
     document.getElementById('aiChatForm').setAttribute('aria-busy', String(busy));
     if (busy && chatSmallScreen.matches) document.getElementById('aiChatClose').focus({preventScroll: true});
@@ -156,10 +171,64 @@ function showChatWelcome() {
     welcome.append(examples);
     chatMessages.append(welcome);
 }
-function appendChatMessage(role, text, error = false) {
+function chatImagePreview(image) {
+    const link = chatElement(image.file ? 'div' : 'a', 'ai-chat-image');
+    if (!image.file) {
+        link.href = image.url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+    }
+    if (!image.file || !/\.tiff?$/i.test(image.filename)) {
+        const thumbnail = document.createElement('img');
+        thumbnail.src = image.url;
+        thumbnail.alt = image.filename;
+        link.append(thumbnail);
+    }
+    link.append(chatElement('span', '', image.filename));
+    return link;
+}
+function renderPendingChatImages() {
+    chatImagePreviews.replaceChildren();
+    chatPendingImages.forEach((image, index) => {
+        const item = chatElement('div', 'ai-chat-pending-image');
+        const remove = chatElement('button', 'ai-chat-image-remove', '×');
+        remove.type = 'button';
+        remove.disabled = chatBusy;
+        remove.setAttribute('aria-label', chatText('removeImage') + ': ' + image.filename);
+        remove.addEventListener('click', () => {
+            URL.revokeObjectURL(image.url);
+            chatPendingImages.splice(index, 1);
+            renderPendingChatImages();
+        });
+        item.append(chatImagePreview(image), remove);
+        chatImagePreviews.append(item);
+    });
+}
+function clearPendingChatImages() {
+    chatPendingImages.forEach(image => URL.revokeObjectURL(image.url));
+    chatPendingImages = [];
+    renderPendingChatImages();
+}
+function addChatImages(files) {
+    if (chatBusy || !files.length) return;
+    let error = '';
+    if (chatPendingImages.length + files.length > 10) error = 'imageLimit';
+    else if (files.some(file => file.size > 20 * 1024 * 1024)) error = 'imageSize';
+    else if (files.some(file => !/\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(file.name))) error = 'imageType';
+    if (error) { chatStatus.textContent = chatText(error); return; }
+    chatPendingImages.push(...files.map(file => ({file, filename: file.name, url: URL.createObjectURL(file)})));
+    chatStatus.textContent = '';
+    renderPendingChatImages();
+}
+function appendChatMessage(role, text, error = false, images = []) {
     const message = chatElement('div', `ai-chat-message ai-chat-${role}${error ? ' ai-chat-error' : ''}`);
     message.append(chatElement('small', '', chatText(role === 'user' ? 'user' : 'assistant')),
         chatElement('div', '', text));
+    if (images.length) {
+        const gallery = chatElement('div', 'ai-chat-message-images');
+        images.forEach(image => gallery.append(chatImagePreview(image)));
+        message.append(gallery);
+    }
     chatMessages.append(message);
     scrollChat();
 }
@@ -207,7 +276,7 @@ function renderChatConversation() {
     chatMessages.replaceChildren();
     if (!chatConversation.messages.length) { showChatWelcome(); return; }
     chatConversation.messages.forEach(message => {
-        if (message.content) appendChatMessage(message.role, message.content);
+        if (message.content || message.images?.length) appendChatMessage(message.role, message.content, false, message.images);
         if (message.proposal) showChatProposal(message);
     });
     scrollChat();
@@ -318,21 +387,30 @@ function showChatProposal(message) {
 }
 async function sendChatMessage(event) {
     event.preventDefault();
-    const content = chatInput.value.trim();
-    if (!content || chatBusy) return;
-    appendChatMessage('user', content);
+    const draft = chatInput.value.trim();
+    if ((!draft && !chatPendingImages.length) || chatBusy) return;
+    const content = draft || chatText('imagePrompt');
+    appendChatMessage('user', content, false, chatPendingImages);
     chatInput.value = '';
     setChatBusy(true, chatText('thinking'));
     try {
-        const data = await chatRequest('/api/chat', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({conversation_id: chatConversation.id, revision: chatConversation.revision,
-                message: content, sample_id: currentSampleId, lang: currentLang}),
-        });
+        const payload = {conversation_id: chatConversation.id, revision: chatConversation.revision,
+            message: content, sample_id: currentSampleId, lang: currentLang};
+        let options;
+        if (chatPendingImages.length) {
+            const body = new FormData();
+            Object.entries(payload).forEach(([key, value]) => { if (value !== null) body.append(key, value); });
+            chatPendingImages.forEach(image => body.append('images', image.file, image.filename));
+            options = {method: 'POST', body};
+        } else {
+            options = {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)};
+        }
+        const data = await chatRequest('/api/chat', options);
         setChatConversation(data.conversation);
+        clearPendingChatImages();
     } catch (error) {
         renderChatConversation();
-        chatInput.value = content;
+        chatInput.value = draft;
         appendChatMessage('assistant', error.message, true);
     } finally {
         setChatBusy(false);
@@ -383,12 +461,22 @@ document.getElementById('aiChatForm').addEventListener('submit', sendChatMessage
 chatInput.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) sendChatMessage(event);
 });
+chatAttach.addEventListener('click', () => chatImageInput.click());
+chatImageInput.addEventListener('change', () => {
+    addChatImages([...chatImageInput.files]);
+    chatImageInput.value = '';
+});
+chatInput.addEventListener('paste', event => {
+    const files = [...event.clipboardData.files];
+    if (files.length) { event.preventDefault(); addChatImages(files); }
+});
 chatReset.addEventListener('click', async () => {
     if (chatBusy) return;
     setChatBusy(true, chatText('loading'));
     try {
         setChatConversation(await chatRequest('/api/chat/conversations', {method: 'POST'}));
         chatInput.value = '';
+        clearPendingChatImages();
     } catch (error) {
         appendChatMessage('assistant', error.message, true);
     } finally { setChatBusy(false); chatInput.focus(); }
@@ -398,6 +486,7 @@ chatConversations.addEventListener('change', async () => {
     try {
         await loadChatConversation(chatConversations.value);
         chatInput.value = '';
+        clearPendingChatImages();
     } catch (error) {
         chatConversations.value = chatConversation ? chatConversation.id : '';
         appendChatMessage('assistant', error.message, true);
