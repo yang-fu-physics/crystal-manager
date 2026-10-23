@@ -423,6 +423,10 @@ body {
     background-color: var(--accent);
 }
 
+.badge-heat {
+    background-color: #b45309;
+}
+
 .badge-xrd {
     background-color: #8e44ad;
 }
@@ -751,6 +755,8 @@ textarea::placeholder {
     padding: 3px;
     border: 1px solid var(--border-color);
 }
+
+.measurement-toggles { flex-wrap: wrap; }
 
 .toggle-btn {
     flex: 1;

@@ -1,447 +1,376 @@
 # -*- coding: utf-8 -*-
-"""
-backup.py — 增量备份与恢复模块
+"""完整数据库（含聊天历史）+ 附件增量；恢复时从完整基线顺序重放。"""
 
-备份结构:
-  backups/
-    manifest.json           ← 已备份文件的记录 {relative_path: mtime}
-    2026-03-08_22-00-00/
-      db.sqlite             ← 数据库完整快照 (SQLite Online Backup API)
-      files/                ← 本次新增/变更的 uploads 文件
-        CG-001/photos/xxx.jpg
-        ...
-      backup_info.json      ← 本次备份元信息 (时间、文件数)
-    2026-03-09_22-00-00/
-      ...
-
-恢复逻辑:
-  1. 选定目标备份时间点
-  2. 恢复该目间点的 db.sqlite
-  3. 按时间顺序合并所有 <= 目标时间的 files/ 目录，重建 uploads/
-"""
-
-import os
+from contextlib import closing, contextmanager
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import json
+import logging
+import os
 import shutil
 import sqlite3
+import tempfile
 import threading
 import time
 import zipfile
-import logging
-from datetime import datetime
 
 import config
 
 logger = logging.getLogger("crystal.backup")
-
-# ---------- 内部常量 ----------
 MANIFEST_PATH = os.path.join(config.BACKUP_FOLDER, "manifest.json")
-TIMESTAMP_FMT = "%Y-%m-%d_%H-%M-%S"
+TIMESTAMP_FMT = "%Y-%m-%d_%H-%M-%S_%f"
+_backup_mutex = threading.Lock()
 
 
-# ============================================================
-# 工具函数
-# ============================================================
-
-def _load_manifest() -> dict:
-    """加载已备份文件清单 {相对路径: 修改时间}"""
-    if os.path.exists(MANIFEST_PATH):
-        with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-
-def _save_manifest(manifest: dict):
-    with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, ensure_ascii=False, indent=2)
-
-
-def list_backups() -> list:
-    """返回所有备份时间戳列表 (str, 升序)"""
-    result = []
-    for name in sorted(os.listdir(config.BACKUP_FOLDER)):
-        info_path = os.path.join(config.BACKUP_FOLDER, name, "backup_info.json")
-        if os.path.isdir(os.path.join(config.BACKUP_FOLDER, name)) and os.path.exists(info_path):
-            result.append(name)
-    return result
-
-
-# ============================================================
-# 备份
-# ============================================================
-
-def _backup_sqlite(dest_dir: str):
-    """使用 SQLite Online Backup API 备份数据库（安全、热备份）"""
-    dest_path = os.path.join(dest_dir, "db.sqlite")
-    src_conn = sqlite3.connect(config.DATABASE_PATH)
-    dst_conn = sqlite3.connect(dest_path)
-    with dst_conn:
-        src_conn.backup(dst_conn)
-    dst_conn.close()
-    src_conn.close()
-    logger.debug(f"DB 已备份到 {dest_path}")
+@contextmanager
+def _backup_guard():
+    """串行化线程和命令行进程对同一恢复链的更新。"""
+    with _backup_mutex:
+        os.makedirs(config.BACKUP_FOLDER, exist_ok=True)
+        with open(os.path.join(config.BACKUP_FOLDER, ".backup.lock"), "a+b") as lock:
+            if os.name == "nt":
+                import msvcrt
+                if os.fstat(lock.fileno()).st_size == 0:
+                    lock.write(b"0")
+                    lock.flush()
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                yield
+            finally:
+                if os.name == "nt":
+                    lock.seek(0)
+                    msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
-def _backup_files(dest_dir: str, manifest: dict) -> tuple[int, int]:
-    """
-    增量备份 uploads 目录中有变化的文件。
-    返回 (新增文件数, 更新文件数)
-    """
-    files_dest = os.path.join(dest_dir, "files")
+def _load_manifest():
+    if not os.path.exists(MANIFEST_PATH):
+        return {}
+    with open(MANIFEST_PATH, encoding="utf-8") as stream:
+        return json.load(stream)
+
+
+def _save_manifest(manifest):
+    temporary = MANIFEST_PATH + ".tmp"
+    with open(temporary, "w", encoding="utf-8") as stream:
+        json.dump(manifest, stream, ensure_ascii=False, indent=2)
+    os.replace(temporary, MANIFEST_PATH)
+
+
+def list_backups():
+    if not os.path.isdir(config.BACKUP_FOLDER):
+        return []
+    return sorted(name for name in os.listdir(config.BACKUP_FOLDER)
+                  if not name.startswith(".")
+                  and os.path.isfile(os.path.join(config.BACKUP_FOLDER, name, "backup_info.json")))
+
+
+def list_full_backups():
+    if not os.path.isdir(config.FULL_BACKUP_FOLDER):
+        return []
+    return sorted(name for name in os.listdir(config.FULL_BACKUP_FOLDER)
+                  if name.startswith("full_") and name.endswith(".zip")
+                  and os.path.isfile(os.path.join(config.FULL_BACKUP_FOLDER, name)))
+
+
+def _copy_database(source, destination):
+    # 整库快照：样品、聊天会话/消息、确认及撤销状态均包含在内。
+    with closing(sqlite3.connect(Path(source).resolve().as_uri() + "?mode=ro", uri=True)) as src:
+        with closing(sqlite3.connect(destination)) as dst:
+            with dst:
+                src.backup(dst)
+
+
+def _backup_files(destination, previous):
+    current, copied = {}, []
     added = updated = 0
-
-    for root, _, filenames in os.walk(config.UPLOAD_FOLDER):
-        for fname in filenames:
-            abs_path = os.path.join(root, fname)
-            rel_path = os.path.relpath(abs_path, config.UPLOAD_FOLDER)
-            mtime = round(os.path.getmtime(abs_path), 3)
-
-            if rel_path not in manifest:
-                action = "new"
-                added += 1
-            elif manifest[rel_path] != mtime:
-                action = "updated"
+    root = Path(config.UPLOAD_FOLDER)
+    for directory, _, filenames in os.walk(root):
+        for name in filenames:
+            source = Path(directory) / name
+            relative = source.relative_to(root).as_posix()
+            stat = source.stat()
+            current[relative] = {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size}
+            if previous.get(relative) == current[relative]:
+                continue
+            target = Path(destination, "files", relative)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            copied.append(relative)
+            if relative in previous:
                 updated += 1
             else:
-                continue  # 未变化，跳过
-
-            # 拷贝文件
-            dest_path = os.path.join(files_dest, rel_path)
-            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-            shutil.copy2(abs_path, dest_path)
-            manifest[rel_path] = mtime
-            logger.debug(f"[{action}] {rel_path}")
-
-    return added, updated
+                added += 1
+    return current, copied, sorted(previous.keys() - current.keys()), added, updated
 
 
-def run_backup() -> str:
-    """
-    执行一次备份，返回备份目录路径。
-    可安全地在后台线程中调用。
-    """
-    ts = config.get_local_now().strftime(TIMESTAMP_FMT)
-    dest_dir = os.path.join(config.BACKUP_FOLDER, ts)
-    os.makedirs(dest_dir, exist_ok=True)
+def _write_full_backup():
+    """调用者持有备份锁；同时为后续增量发布新的基线。"""
+    os.makedirs(config.FULL_BACKUP_FOLDER, exist_ok=True)
+    timestamp = config.get_local_now().strftime(TIMESTAMP_FMT)
+    name = f"full_{timestamp}.zip"
+    target = Path(config.FULL_BACKUP_FOLDER, name)
+    if target.exists():
+        raise FileExistsError(f"完整备份已存在: {name}")
+    files = {}
+    with tempfile.TemporaryDirectory(prefix=".full-", dir=config.FULL_BACKUP_FOLDER) as temporary:
+        database = Path(temporary, "db.sqlite")
+        _copy_database(config.DATABASE_PATH, database)
+        archive = Path(temporary, name)
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as output:
+            output.write(database, "db.sqlite")
+            root = Path(config.UPLOAD_FOLDER)
+            for directory, _, filenames in os.walk(root):
+                for filename in filenames:
+                    source = Path(directory, filename)
+                    relative = source.relative_to(root).as_posix()
+                    stat = source.stat()
+                    files[relative] = {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size}
+                    output.write(source, "uploads/" + relative)
+            output.writestr("backup_info.json", json.dumps({
+                "format_version": 2, "kind": "full", "timestamp": timestamp, "files": files,
+            }, ensure_ascii=False))
+        _save_manifest({"format_version": 2, "base_full": name, "last_incremental": None, "files": files})
+        os.replace(archive, target)
+    _prune_old_full_backups()
+    logger.info("完整备份完成: %s（含所有数据库表及上传文件）", name)
+    return str(target)
 
-    logger.info(f"开始备份 → {dest_dir}")
 
-    try:
-        # 1. 备份数据库
-        _backup_sqlite(dest_dir)
+def run_full_backup():
+    with _backup_guard():
+        return _write_full_backup()
 
-        # 2. 增量备份文件
+
+def run_backup():
+    with _backup_guard():
         manifest = _load_manifest()
-        added, updated = _backup_files(dest_dir, manifest)
-        _save_manifest(manifest)
-
-        # 3. 写备份信息
-        info = {
-            "timestamp": ts,
-            "db_size_bytes": os.path.getsize(os.path.join(dest_dir, "db.sqlite")),
-            "files_added": added,
-            "files_updated": updated,
-        }
-        with open(os.path.join(dest_dir, "backup_info.json"), "w", encoding="utf-8") as f:
-            json.dump(info, f, ensure_ascii=False, indent=2)
-
-        logger.info(f"备份完成：新增 {added} 个文件，更新 {updated} 个文件")
-
-        # 4. 清理旧备份
+        if manifest.get("format_version") != 2 or manifest["base_full"] not in list_full_backups():
+            # 首次使用或升级旧格式时，先建立可验证的完整基线。
+            _write_full_backup()
+            manifest = _load_manifest()
+        if manifest["last_incremental"] is not None:
+            get_restore_plan(manifest["last_incremental"], manifest["base_full"])
+        timestamp = config.get_local_now().strftime(TIMESTAMP_FMT)
+        target = Path(config.BACKUP_FOLDER, timestamp)
+        if target.exists():
+            raise FileExistsError(f"增量备份已存在: {timestamp}")
+        with tempfile.TemporaryDirectory(prefix=".incremental-", dir=config.BACKUP_FOLDER) as temporary:
+            _copy_database(config.DATABASE_PATH, Path(temporary, "db.sqlite"))
+            files, copied, deleted, added, updated = _backup_files(temporary, manifest["files"])
+            info = {
+                "format_version": 2, "kind": "incremental", "timestamp": timestamp,
+                "base_full": manifest["base_full"], "previous_incremental": manifest["last_incremental"],
+                "db_size_bytes": Path(temporary, "db.sqlite").stat().st_size,
+                "files_added": added, "files_updated": updated, "files": copied, "deleted_files": deleted,
+            }
+            with open(Path(temporary, "backup_info.json"), "w", encoding="utf-8") as stream:
+                json.dump(info, stream, ensure_ascii=False, indent=2)
+            _save_manifest({**manifest, "last_incremental": timestamp, "files": files})
+            os.replace(temporary, target)
         _prune_old_backups()
-
-        return dest_dir
-
-    except Exception as e:
-        logger.error(f"备份失败: {e}", exc_info=True)
-        # 清理不完整的备份目录
-        if os.path.isdir(dest_dir) and not os.listdir(dest_dir):
-            os.rmdir(dest_dir)
-        raise
+        logger.info("增量备份完成: %s（新增 %s，修改 %s，删除 %s）", timestamp, added, updated, len(deleted))
+        return str(target)
 
 
 def _prune_old_backups():
-    """删除超出 BACKUP_KEEP_COUNT 的最旧备份"""
     backups = list_backups()
-    excess = len(backups) - config.BACKUP_KEEP_COUNT
-    for old_ts in backups[:excess]:
-        old_dir = os.path.join(config.BACKUP_FOLDER, old_ts)
-        shutil.rmtree(old_dir, ignore_errors=True)
-        logger.info(f"已删除旧增量备份: {old_ts}")
-
-
-# ============================================================
-# 完整备份 (zip 压缩)
-# ============================================================
-
-def list_full_backups() -> list:
-    """返回所有完整备份文件名列表 (升序)"""
-    result = []
-    if not os.path.isdir(config.FULL_BACKUP_FOLDER):
-        return result
-    for name in sorted(os.listdir(config.FULL_BACKUP_FOLDER)):
-        if name.startswith("full_") and name.endswith(".zip"):
-            result.append(name)
-    return result
-
-
-def run_full_backup() -> str:
-    """
-    执行一次完整备份，将数据库 + 整个 uploads 目录打包为 zip 文件。
-    返回 zip 文件路径。
-    """
-    ts = config.get_local_now().strftime(TIMESTAMP_FMT)
-    zip_name = f"full_{ts}.zip"
-    zip_path = os.path.join(config.FULL_BACKUP_FOLDER, zip_name)
-
-    logger.info(f"开始完整备份 → {zip_path}")
-
-    try:
-        # 先用 SQLite Backup API 导出一份安全的数据库快照到临时文件
-        temp_db = os.path.join(config.FULL_BACKUP_FOLDER, f"_temp_{ts}.sqlite")
-        src_conn = sqlite3.connect(config.DATABASE_PATH)
-        dst_conn = sqlite3.connect(temp_db)
-        with dst_conn:
-            src_conn.backup(dst_conn)
-        dst_conn.close()
-        src_conn.close()
-
-        # 创建 zip 文件
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-            # 添加数据库快照
-            zf.write(temp_db, "db.sqlite")
-
-            # 添加整个 uploads 目录
-            if os.path.isdir(config.UPLOAD_FOLDER):
-                for root, dirs, filenames in os.walk(config.UPLOAD_FOLDER):
-                    for fname in filenames:
-                        abs_path = os.path.join(root, fname)
-                        arc_name = os.path.join(
-                            "uploads",
-                            os.path.relpath(abs_path, config.UPLOAD_FOLDER)
-                        )
-                        zf.write(abs_path, arc_name)
-
-        # 删除临时数据库文件
-        os.remove(temp_db)
-
-        # 统计信息
-        zip_size_mb = os.path.getsize(zip_path) / 1024 / 1024
-        logger.info(f"完整备份完成：{zip_name} ({zip_size_mb:.1f} MB)")
-
-        # 清理旧的完整备份
-        _prune_old_full_backups()
-
-        return zip_path
-
-    except Exception as e:
-        logger.error(f"完整备份失败: {e}", exc_info=True)
-        # 清理不完整的文件
-        for f in [zip_path, temp_db if 'temp_db' in dir() else None]:
-            if f and os.path.exists(f):
-                try:
-                    os.remove(f)
-                except OSError:
-                    pass
-        raise
-
-
-def restore_full_backup(zip_name: str, target_upload_dir: str = None, target_db_path: str = None):
-    """
-    从完整备份 zip 文件恢复。
-
-    :param zip_name: zip 文件名，如 'full_2026-03-08_22-00-00.zip'
-    :param target_upload_dir: 恢复到的 uploads 目录（默认 config.UPLOAD_FOLDER）
-    :param target_db_path: 恢复到的 DB 路径（默认 config.DATABASE_PATH）
-    """
-    if target_upload_dir is None:
-        target_upload_dir = config.UPLOAD_FOLDER
-    if target_db_path is None:
-        target_db_path = config.DATABASE_PATH
-
-    zip_path = os.path.join(config.FULL_BACKUP_FOLDER, zip_name)
-    if not os.path.exists(zip_path):
-        available = list_full_backups()
-        raise ValueError(f"完整备份不存在: {zip_name}\n可用备份: {available}")
-
-    logger.info(f"正在从完整备份恢复: {zip_name}")
-
-    with zipfile.ZipFile(zip_path, 'r') as zf:
-        members = zf.namelist()
-
-        # 1. 恢复数据库
-        if "db.sqlite" not in members:
-            raise FileNotFoundError(f"备份中缺少数据库文件: db.sqlite")
-
-        # 解压到临时文件，再用 SQLite Backup API 安全恢复
-        temp_db = target_db_path + ".restore_tmp"
-        with zf.open("db.sqlite") as src, open(temp_db, 'wb') as dst:
-            shutil.copyfileobj(src, dst)
-
-        src_conn = sqlite3.connect(temp_db)
-        dst_conn = sqlite3.connect(target_db_path)
-        with dst_conn:
-            src_conn.backup(dst_conn)
-        dst_conn.close()
-        src_conn.close()
-        os.remove(temp_db)
-        logger.info(f"数据库已恢复 → {target_db_path}")
-
-        # 2. 恢复 uploads 文件
-        upload_members = [m for m in members if m.startswith("uploads/") and not m.endswith("/")]
-        for member in upload_members:
-            rel_path = member[len("uploads/"):]  # 去掉 "uploads/" 前缀
-            dst_path = os.path.join(target_upload_dir, rel_path)
-            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-            with zf.open(member) as src, open(dst_path, 'wb') as dst:
-                shutil.copyfileobj(src, dst)
-
-        logger.info(f"文件已恢复 ({len(upload_members)} 个文件) → {target_upload_dir}")
-
-    logger.info(f"完整备份恢复完成: {zip_name}")
+    excess = max(0, len(backups) - config.BACKUP_KEEP_COUNT)
+    full = list_full_backups()
+    # 保留仍被完整基线依赖的增量，不能为满足数量限制拆断恢复链。
+    removable = [timestamp for timestamp in backups if full and
+                 (timestamp < full[0][5:-4] or
+                  (timestamp == full[0][5:-4] and _incremental_info(timestamp).get("base_full") != full[0]))]
+    for timestamp in removable[:excess]:
+        target = Path(config.BACKUP_FOLDER, timestamp).resolve()
+        if not target.is_relative_to(Path(config.BACKUP_FOLDER).resolve()):
+            raise ValueError("增量备份目录越界")
+        shutil.rmtree(target)
+        logger.info("已删除旧增量备份: %s", timestamp)
+    if excess > len(removable):
+        logger.warning("增量保留数暂超限制：仍需保留完整恢复链")
 
 
 def _prune_old_full_backups():
-    """删除超出 FULL_BACKUP_KEEP_COUNT 的最旧完整备份"""
     backups = list_full_backups()
-    excess = len(backups) - config.FULL_BACKUP_KEEP_COUNT
-    for old_name in backups[:excess]:
-        old_path = os.path.join(config.FULL_BACKUP_FOLDER, old_name)
-        try:
-            os.remove(old_path)
-            logger.info(f"已删除旧完整备份: {old_name}")
-        except OSError as e:
-            logger.error(f"删除完整备份失败: {old_name}: {e}")
+    if config.FULL_BACKUP_KEEP_COUNT < 1:
+        raise ValueError("至少需要保留一份完整备份")
+    for name in backups[:max(0, len(backups) - config.FULL_BACKUP_KEEP_COUNT)]:
+        Path(config.FULL_BACKUP_FOLDER, name).unlink()
+        logger.info("已删除旧完整备份: %s", name)
 
 
-# ============================================================
-# 恢复
-# ============================================================
-
-def restore_backup(timestamp: str, target_upload_dir: str = None, target_db_path: str = None):
-    """
-    恢复到指定时间点的备份。
-
-    策略：
-      - 将指定备份的 db.sqlite 覆盖当前数据库
-      - 重建 uploads：按时间顺序将所有 <= timestamp 的 files/ 合并
-
-    :param timestamp: 备份时间戳字符串，如 '2026-03-08_22-00-00'
-    :param target_upload_dir: 恢复到的 uploads 目录（默认 config.UPLOAD_FOLDER）
-    :param target_db_path: 恢复到的 DB 路径（默认 config.DATABASE_PATH）
-    """
-    if target_upload_dir is None:
-        target_upload_dir = config.UPLOAD_FOLDER
-    if target_db_path is None:
-        target_db_path = config.DATABASE_PATH
-
-    all_backups = list_backups()
-    if timestamp not in all_backups:
-        raise ValueError(f"备份不存在: {timestamp}\n可用备份: {all_backups}")
-
-    backup_dir = os.path.join(config.BACKUP_FOLDER, timestamp)
-
-    # 1. 恢复数据库
-    db_backup = os.path.join(backup_dir, "db.sqlite")
-    if not os.path.exists(db_backup):
-        raise FileNotFoundError(f"数据库备份文件不存在: {db_backup}")
-
-    logger.info(f"正在恢复数据库 → {target_db_path}")
-    src_conn = sqlite3.connect(db_backup)
-    dst_conn = sqlite3.connect(target_db_path)
-    with dst_conn:
-        src_conn.backup(dst_conn)
-    dst_conn.close()
-    src_conn.close()
-
-    # 2. 重建 uploads/: 按时间顺序叠加所有 <= timestamp 的 files/
-    logger.info(f"正在重建文件 → {target_upload_dir}")
-    eligible = [b for b in all_backups if b <= timestamp]
-    for bts in eligible:
-        files_src = os.path.join(config.BACKUP_FOLDER, bts, "files")
-        if not os.path.isdir(files_src):
-            continue
-        for root, _, filenames in os.walk(files_src):
-            for fname in filenames:
-                src_path = os.path.join(root, fname)
-                rel = os.path.relpath(src_path, files_src)
-                dst_path = os.path.join(target_upload_dir, rel)
-                os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-                shutil.copy2(src_path, dst_path)
-
-    logger.info(f"恢复完成 (时间点: {timestamp})")
+def _incremental_info(timestamp):
+    with open(Path(config.BACKUP_FOLDER, timestamp, "backup_info.json"), encoding="utf-8") as stream:
+        return json.load(stream)
 
 
-# ============================================================
-# 定时调度器
-# ============================================================
+def get_restore_plan(timestamp=None, full_backup=None):
+    """预览完整基线与后续增量；缺失链或目标不可用时在修改数据前失败。"""
+    full = list_full_backups()
+    incremental = list_backups()
+    if not full:
+        raise ValueError("没有可用的完整备份，不能只用增量恢复")
+    if full_backup is not None and full_backup not in full:
+        raise ValueError(f"完整备份不存在: {full_backup}")
+    if full_backup is not None:
+        base_time = full_backup[5:-4]
+        later_full = [name[5:-4] for name in full if name[5:-4] > base_time]
+        limit = later_full[0] if later_full else None
+        if timestamp is None:
+            candidates = [value for value in incremental if value > base_time and (limit is None or value < limit)]
+            timestamp = candidates[-1] if candidates else base_time
+        if timestamp < base_time or (limit is not None and timestamp >= limit):
+            raise ValueError("目标不属于所选完整备份的恢复链，请按目标时间自动选择基线")
+    else:
+        if timestamp is None:
+            timestamp = max([name[5:-4] for name in full] + incremental)
+        eligible = [name for name in full if name[5:-4] <= timestamp]
+        if not eligible:
+            raise ValueError("目标时间之前没有完整备份")
+        full_backup = eligible[-1]
+        base_time = full_backup[5:-4]
+    if timestamp not in incremental and timestamp not in [name[5:-4] for name in full]:
+        raise ValueError(f"备份时间点不存在: {timestamp}")
+    selected = [value for value in incremental if value <= timestamp and
+                (value > base_time or (value == base_time and _incremental_info(value).get("base_full") == full_backup))]
+    previous = None
+    legacy = False
+    for value in selected:
+        info = _incremental_info(value)
+        if not Path(config.BACKUP_FOLDER, value, "db.sqlite").is_file():
+            raise FileNotFoundError(f"增量数据库快照缺失: {value}")
+        if info.get("format_version") == 2:
+            if info["base_full"] != full_backup or info["previous_incremental"] != previous:
+                raise ValueError(f"增量恢复链不完整或基线不匹配: {value}")
+        else:
+            legacy = True
+        previous = value
+    return {"full_backup": full_backup, "incrementals": selected, "timestamp": timestamp, "legacy": legacy}
 
-_scheduler_thread: threading.Thread | None = None
-_full_scheduler_thread: threading.Thread | None = None
+
+def _relative_path(root, relative):
+    """校验来自备份元数据/压缩包的相对路径。"""
+    if not isinstance(relative, str) or PureWindowsPath(relative).drive:
+        raise ValueError(f"备份路径无效: {relative!r}")
+    path = PurePosixPath(relative.replace("\\", "/"))
+    root = Path(root).resolve()
+    target = root.joinpath(*path.parts).resolve()
+    if path.is_absolute() or ".." in path.parts or target == root or not target.is_relative_to(root):
+        raise ValueError(f"备份路径越界: {relative}")
+    return target
+
+
+def restore_backup(timestamp=None, target_upload_dir=None, target_db_path=None, *, full_backup=None):
+    """先在临时目录还原完整备份及后续增量，验证后替换目标数据。应用必须先停止。"""
+    with _backup_guard():
+        plan = get_restore_plan(timestamp, full_backup)
+        uploads = Path(config.UPLOAD_FOLDER if target_upload_dir is None else target_upload_dir).resolve()
+        database = Path(config.DATABASE_PATH if target_db_path is None else target_db_path).resolve()
+        backup_roots = [Path(config.BACKUP_FOLDER).resolve(), Path(config.FULL_BACKUP_FOLDER).resolve()]
+        if (uploads == uploads.parent or database.is_relative_to(uploads)
+                or any(root.is_relative_to(uploads) or uploads.is_relative_to(root) for root in backup_roots)
+                or any(database.is_relative_to(root) for root in backup_roots)):
+            raise ValueError("恢复目标不能覆盖数据库所在目录、文件系统根目录或备份目录")
+        uploads.parent.mkdir(parents=True, exist_ok=True)
+        database.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".crystal-restore-", dir=uploads.parent) as temporary:
+            staged_uploads = Path(temporary, "uploads")
+            staged_uploads.mkdir()
+            staged_db = Path(temporary, "db.sqlite")
+            with zipfile.ZipFile(Path(config.FULL_BACKUP_FOLDER, plan["full_backup"])) as archive:
+                with archive.open("db.sqlite") as source, staged_db.open("wb") as output:
+                    shutil.copyfileobj(source, output)
+                members = [name for name in archive.namelist() if name.startswith("uploads/") and not name.endswith("/")]
+                if "backup_info.json" in archive.namelist():
+                    info = json.loads(archive.read("backup_info.json"))
+                    if info.get("format_version") == 2 and set(info["files"]) != {name[8:] for name in members}:
+                        raise ValueError("完整备份文件清单不一致")
+                else:
+                    plan["legacy"] = True
+                for name in members:
+                    target = _relative_path(staged_uploads, name[8:])
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.open(name) as source, target.open("wb") as output:
+                        shutil.copyfileobj(source, output)
+            for value in plan["incrementals"]:
+                info = _incremental_info(value)
+                source_root = Path(config.BACKUP_FOLDER, value, "files")
+                if info.get("format_version") == 2:
+                    for relative in info["deleted_files"]:
+                        _relative_path(staged_uploads, relative).unlink(missing_ok=True)
+                    paths = info["files"]
+                else:
+                    paths = [path.relative_to(source_root).as_posix() for path in source_root.rglob("*") if path.is_file()]
+                for relative in paths:
+                    source = _relative_path(source_root, relative)
+                    target = _relative_path(staged_uploads, relative)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, target)
+                shutil.copy2(Path(config.BACKUP_FOLDER, value, "db.sqlite"), staged_db)
+            with closing(sqlite3.connect(staged_db)) as connection:
+                if connection.execute("PRAGMA quick_check").fetchall() != [("ok",)]:
+                    raise ValueError("备份数据库完整性检查失败")
+                connection.execute("SELECT 1 FROM samples LIMIT 0")
+            # 临时目录与 uploads 同卷；保留原目录，数据库恢复失败时还原文件。
+            old_uploads = Path(temporary, "previous-uploads")
+            had_uploads = uploads.exists()
+            if had_uploads:
+                os.replace(uploads, old_uploads)
+            installed = False
+            try:
+                os.replace(staged_uploads, uploads)
+                installed = True
+                _copy_database(staged_db, database)
+            except (OSError, sqlite3.Error):
+                if installed:
+                    os.replace(uploads, Path(temporary, "failed-uploads"))
+                if had_uploads:
+                    os.replace(old_uploads, uploads)
+                raise
+        logger.info("恢复完成: %s + %s 份增量 → %s", plan["full_backup"], len(plan["incrementals"]), plan["timestamp"])
+        return plan
+
+
+def restore_full_backup(zip_name, target_upload_dir=None, target_db_path=None, timestamp=None):
+    """恢复所选完整基线，并叠加同一恢复链中的后续增量。"""
+    return restore_backup(timestamp, target_upload_dir, target_db_path, full_backup=zip_name)
+
+
+_scheduler_thread = None
 _stop_event = threading.Event()
 
 
 def _scheduler_loop():
-    """ 增量备份调度循环 """
-    interval_secs = config.BACKUP_INTERVAL_HOURS * 3600
-    logger.info(f"增量备份调度器启动，间隔 {config.BACKUP_INTERVAL_HOURS} 小时")
+    # 同时到期时先完整、后增量，避免启动时并发重置恢复基线。
+    next_full = next_incremental = time.monotonic()
     while not _stop_event.is_set():
-        try:
-            run_backup()
-        except Exception:
-            pass  # 错误已在 run_backup 中记录
-        _stop_event.wait(timeout=interval_secs)
-    logger.info("增量备份调度器已停止")
-
-
-def _full_backup_scheduler_loop():
-    """ 完整备份调度循环 """
-    interval_secs = config.FULL_BACKUP_INTERVAL_HOURS * 3600
-    logger.info(f"完整备份调度器启动，间隔 {config.FULL_BACKUP_INTERVAL_HOURS} 小时 ({config.FULL_BACKUP_INTERVAL_HOURS / 24:.0f} 天)")
-    while not _stop_event.is_set():
-        try:
-            run_full_backup()
-        except Exception:
-            pass  # 错误已在 run_full_backup 中记录
-        _stop_event.wait(timeout=interval_secs)
-    logger.info("完整备份调度器已停止")
-
-
-def _is_werkzeug_spawner() -> bool:
-    """Flask debug 模式下检测是否在父进程 (spawner) 中"""
-    import os as _os
-    wrm = _os.environ.get('WERKZEUG_RUN_MAIN')
-    return wrm is not None and wrm != 'true'
+        if time.monotonic() >= next_full:
+            try:
+                run_full_backup()
+            except (OSError, sqlite3.Error, zipfile.BadZipFile, ValueError):
+                logger.exception("定时完整备份失败")
+            next_full = time.monotonic() + config.FULL_BACKUP_INTERVAL_HOURS * 3600
+        if not _stop_event.is_set() and time.monotonic() >= next_incremental:
+            try:
+                run_backup()
+            except (OSError, sqlite3.Error, zipfile.BadZipFile, ValueError):
+                logger.exception("定时增量备份失败")
+            next_incremental = time.monotonic() + config.BACKUP_INTERVAL_HOURS * 3600
+        _stop_event.wait(max(0, min(next_full, next_incremental) - time.monotonic()))
 
 
 def start_scheduler():
-    """在后台线程中启动定时备份调度器（幂等）"""
-    global _scheduler_thread, _full_scheduler_thread
-
-    if _is_werkzeug_spawner():
-        return
-
-    _stop_event.clear()
-
-    # 增量备份调度器
+    global _scheduler_thread
     if not (_scheduler_thread and _scheduler_thread.is_alive()):
-        _scheduler_thread = threading.Thread(
-            target=_scheduler_loop,
-            name="BackupScheduler",
-            daemon=True,
-        )
+        _stop_event.clear()
+        _scheduler_thread = threading.Thread(target=_scheduler_loop, name="BackupScheduler", daemon=True)
         _scheduler_thread.start()
-
-    # 完整备份调度器
-    if not (_full_scheduler_thread and _full_scheduler_thread.is_alive()):
-        _full_scheduler_thread = threading.Thread(
-            target=_full_backup_scheduler_loop,
-            name="FullBackupScheduler",
-            daemon=True,
-        )
-        _full_scheduler_thread.start()
 
 
 def stop_scheduler():
-    """停止所有定时备份调度器"""
     _stop_event.set()

@@ -7,6 +7,7 @@
     <meta name="description" content="晶体生长样品管理系统 - 管理样品信息、照片、EDX分析和数据文件" data-i18n-attr="content|description">
     <link rel="stylesheet" href="/static/fonts/fonts.css">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/chat.css">
 </head>
 <body>
     <!-- 顶部导航栏 -->
@@ -154,9 +155,10 @@
                         </div>
                         <div class="form-group">
                             <label data-i18n="form.fields.measurements">测量</label>
-                            <div class="toggle-group">
+                            <div class="toggle-group measurement-toggles">
                                 <button class="toggle-btn" id="toggleElectric"><span data-i18n="form.measurements.electric">电学测量</span></button>
                                 <button class="toggle-btn" id="toggleMagnetic"><span data-i18n="form.measurements.magnetic">磁性测量</span></button>
+                                <button class="toggle-btn" id="toggleSpecificHeat"><span data-i18n="form.measurements.specificHeat">比热测量</span></button>
                                 <button class="toggle-btn" id="toggleXRD"><span data-i18n="form.measurements.xrd">XRD</span></button>
                                 <button class="toggle-btn" id="toggleEDX"><span data-i18n="form.measurements.edx">EDX</span></button>
                             </div>
@@ -429,7 +431,45 @@
                 </section>
             </div>
         </main>
+        <div class="ai-chat-resizer" id="aiChatResizer" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="aiChatPanel" aria-label="调整助手宽度（方向键调节，双击恢复默认）" data-chat-i18n-label="resize"></div>
+        <aside class="ai-chat-panel" id="aiChatPanel" aria-labelledby="aiChatTitle" hidden>
+            <header class="ai-chat-header">
+                <div>
+                    <h2 id="aiChatTitle" data-chat-i18n="title">AI 样品助手</h2>
+                    <p id="aiChatContext"></p>
+                </div>
+                <button type="button" class="ai-chat-icon" id="aiChatClose" aria-label="收起助手" data-chat-i18n-label="close">×</button>
+            </header>
+            <div class="ai-chat-notice" data-chat-i18n="notice">支持上传、粘贴和读取已存图片；每个样品分别确认保存。</div>
+            <div class="ai-chat-sessions">
+                <label for="aiChatConversations" data-chat-i18n="sessions">历史会话（已登录设备共享）</label>
+                <div class="ai-chat-session-controls">
+                    <select id="aiChatConversations" data-chat-i18n-label="sessions" aria-label="历史会话"></select>
+                    <button type="button" class="ai-chat-button" id="aiChatRefresh" data-chat-i18n-label="refresh" aria-label="刷新会话">↻</button>
+                </div>
+            </div>
+            <div class="ai-chat-messages" id="aiChatMessages" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天记录" data-chat-i18n-label="history"></div>
+            <footer class="ai-chat-footer">
+                <div class="ai-chat-status" id="aiChatStatus" role="status"></div>
+                <form id="aiChatForm">
+                    <label class="ai-chat-input-label" for="aiChatInput" data-chat-i18n="inputLabel">告诉助手要查找或修改什么</label>
+                    <textarea id="aiChatInput" rows="3" maxlength="4000" data-chat-i18n-placeholder="placeholder" placeholder="例如：把当前样品的烧制耗时改为 72 小时"></textarea>
+                    <input type="file" id="aiChatImageInput" accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.tif,.tiff" multiple hidden>
+                    <div class="ai-chat-image-previews" id="aiChatImagePreviews"></div>
+                    <div class="ai-chat-compose-actions">
+                        <button type="button" class="ai-chat-button" id="aiChatAttach" data-chat-i18n="attach">添加图片</button>
+                        <button type="button" class="ai-chat-button" id="aiChatReset" data-chat-i18n="reset">新建会话</button>
+                        <button type="submit" class="ai-chat-button ai-chat-primary" id="aiChatSend" data-chat-i18n="send">发送</button>
+                    </div>
+                    <p class="ai-chat-image-hint" data-chat-i18n="imageHint">可粘贴图片；最多 10 张，每张 20 MiB，请求总计 100 MiB。图片随会话保存，不会自动加入样品附件。</p>
+                    <p class="ai-chat-key-hint" data-chat-i18n="keyHint">Enter 发送 · Shift + Enter 换行</p>
+                </form>
+            </footer>
+        </aside>
     </div>
+
+    <div class="ai-chat-backdrop" id="aiChatBackdrop" hidden></div>
+    <button type="button" class="ai-chat-launcher" id="aiChatToggle" aria-controls="aiChatPanel" aria-expanded="false" data-chat-i18n="title">AI 样品助手</button>
 
     <!-- 样品导出选择模态框 -->
     <div class="export-selection-overlay" id="exportSelectionModal" hidden>
@@ -463,5 +503,6 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="/static/js/app.js"></script>
+    <script src="/static/js/chat.js"></script>
 </body>
 </html>

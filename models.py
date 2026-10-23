@@ -29,6 +29,7 @@ def init_db():
             is_successful INTEGER DEFAULT 2,
             has_electric INTEGER DEFAULT 0,
             has_magnetic INTEGER DEFAULT 0,
+            has_specific_heat INTEGER DEFAULT 0,
             has_xrd INTEGER DEFAULT 0,
             has_edx INTEGER DEFAULT 0,
 has_pdf INTEGER DEFAULT 0,
@@ -85,6 +86,37 @@ has_pdf INTEGER DEFAULT 0,
             FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS chat_conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT '',
+            revision INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            proposal TEXT,
+            proposal_token TEXT UNIQUE,
+            proposal_expires REAL,
+            state TEXT NOT NULL DEFAULT 'complete',
+            undo_token TEXT UNIQUE,
+            undo_expires REAL,
+            outcome TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS chat_messages_conversation ON chat_messages(conversation_id);
+
+        CREATE TABLE IF NOT EXISTS chat_images (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+            filename TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS chat_images_message ON chat_images(message_id);
+
     """)
 
     # Dynamic migration for other_files (backwards compatibility)
@@ -120,6 +152,9 @@ has_pdf INTEGER DEFAULT 0,
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE samples ADD COLUMN has_electric INTEGER DEFAULT 0")
         cursor.execute("ALTER TABLE samples ADD COLUMN has_magnetic INTEGER DEFAULT 0")
+
+    if 'has_specific_heat' not in {row['name'] for row in cursor.execute('PRAGMA table_info(samples)')}:
+        cursor.execute('ALTER TABLE samples ADD COLUMN has_specific_heat INTEGER DEFAULT 0')
 
     # Dynamic migration for has_xrd and has_edx
     try:
@@ -279,17 +314,18 @@ def create_sample(data):
     conn = get_db()
     try:
         conn.execute(
-            """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, has_xrd, has_edx, has_pdf, growth_process, growth_process_en,
+            """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, has_specific_heat, has_xrd, has_edx, has_pdf, growth_process, growth_process_en,
                element_ratios, actual_masses, notes, results, results_en,
                sintering_start, sintering_duration, sintering_end,
                created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 data['id'],
                 data.get('target_product', ''),
                 data.get('status', 2),
                 data.get('has_electric', 0),
                 data.get('has_magnetic', 0),
+                data.get('has_specific_heat', 0),
                 data.get('has_xrd', 0),
                 data.get('has_edx', 0),
             data.get('has_pdf', 0),
@@ -312,7 +348,11 @@ def create_sample(data):
     return get_sample(data['id'])
 
 
-def update_sample(sample_id, data):
+class SampleChangedError(Exception):
+    pass
+
+
+def update_sample(sample_id, data, expected_sample=None):
     """更新样品"""
     now = config.get_local_now().isoformat()
     conn = get_db()
@@ -321,18 +361,23 @@ def update_sample(sample_id, data):
     new_id = data.get('id', sample_id)
 
     try:
+        if expected_sample is not None:
+            conn.execute("BEGIN IMMEDIATE")
+            latest = sample_to_dict(conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone())
+            if latest is None or any(value != expected_sample[key] for key, value in latest.items()):
+                raise SampleChangedError('样品已发生变化，请重新生成方案')
         if new_id != sample_id:
             conn.commit() # ensure no active transaction
             conn.execute("PRAGMA foreign_keys = OFF")
             conn.execute("BEGIN TRANSACTION")
             
             conn.execute(
-                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
+                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_specific_heat=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?, results_en=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
                    updated_at=?
                    WHERE id=?""",
-                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
+                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_specific_heat', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
             data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
             )
             
@@ -373,12 +418,12 @@ def update_sample(sample_id, data):
             conn.execute("PRAGMA foreign_keys = ON")
         else:
             conn.execute(
-                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
+                """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_specific_heat=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?, results_en=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
                    updated_at=?
                    WHERE id=?""",
-                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
+                (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_specific_heat', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
             data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
             )
             conn.commit()
@@ -387,11 +432,16 @@ def update_sample(sample_id, data):
     return get_sample(new_id)
 
 
-def delete_sample(sample_id):
+def delete_sample(sample_id, expected_sample=None):
     """删除样品及其所有附件"""
     conn = get_db()
 
     try:
+        if expected_sample is not None:
+            conn.execute("BEGIN IMMEDIATE")
+            latest = sample_to_dict(conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone())
+            if latest is None or any(value != expected_sample[key] for key, value in latest.items()):
+                raise SampleChangedError('样品已发生变化，不能撤销新建')
         # 获取附件路径以便删除文件
         photos = conn.execute("SELECT filepath FROM photos WHERE sample_id = ?", (sample_id,)).fetchall()
         edx_imgs = conn.execute("SELECT filepath FROM edx_images WHERE sample_id = ?", (sample_id,)).fetchall()
@@ -399,11 +449,17 @@ def delete_sample(sample_id):
         data_files = conn.execute("SELECT filepath FROM data_files WHERE sample_id = ?", (sample_id,)).fetchall()
         other_files = conn.execute("SELECT filepath FROM other_files WHERE sample_id = ?", (sample_id,)).fetchall()
 
+        if expected_sample is not None and any((photos, edx_imgs, xrd_imgs, data_files, other_files)):
+            raise SampleChangedError('样品已有附件，不能撤销新建；如需删除请使用样品删除功能')
+
         # 删除数据库记录
         conn.execute("DELETE FROM samples WHERE id = ?", (sample_id,))
         conn.commit()
     finally:
         conn.close()
+
+    if expected_sample is not None:
+        return True  # AI 新建不创建附件或目录；撤销时不操作文件系统。
 
     # 删除文件 —— 先尝试删除整个样品文件夹
     safe_id = "".join(c if (c.isalnum() or c in '-_.') else '_' for c in sample_id)

@@ -32,9 +32,9 @@ const translations = {
                        sinteringNowBtn: "当前时间", sinteringNowTitle: "设为当前时间" },
             placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcessZh: "描述晶体的生长方法、温度曲线、时间等参数...", growthProcessEn: "描述晶体的英文生长方法、温度曲线、时间等参数...", resultsZh: "实验结果描述...", resultsEn: "实验结果英文描述...", notes: "其他需要记录的信息..." },
             status: { success: "成功", fail: "失败", pending: "待定", growing: "生长中", done: "生长完成" },
-            measurements: { electric: "电学测量", magnetic: "磁性测量", xrd: "XRD", edx: "EDX" },
+            measurements: { electric: "电学测量", magnetic: "磁性测量", specificHeat: "比热测量", xrd: "XRD", edx: "EDX" },
             documents: { pdf: "PDF" },
-            badges: { electric: "电", magnetic: "磁", xrd: "XRD", edx: "EDX" },
+            badges: { electric: "电", magnetic: "磁", specificHeat: "比热", xrd: "XRD", edx: "EDX" },
             calc: { symbol: "元素符号", ratio: "摩尔比", molarMass: "摩尔质量 (g/mol)", mass: "实际质量 (g)", reference: "参考", addElement: "添加元素", calcMass: "计算质量" },
             upload: { dragPhoto: "拖拽照片到此处，或", dragXrd: "拖拽 XRD 数据或谱图到此处，或", dragEdx: "拖拽 EDX 谱图到此处，或", dragData: "拖拽 .dat/.csv/.txt 文件到此处，或", dragOther: "拖拽任何其他文件到此处，或", clickUpload: "点击上传", takePhoto: "拍照上传" }
         },
@@ -79,9 +79,9 @@ const translations = {
                        sinteringNowBtn: "Now", sinteringNowTitle: "Set to current time" },
             placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcessZh: "Describe the growth method, temp profile, time, etc...", growthProcessEn: "Describe the English growth method, temp profile, time, etc...", resultsZh: "Chinese experiment results...", resultsEn: "Experiment results...", notes: "Any other notes..." },
             status: { success: "Success", fail: "Fail", pending: "Pending", growing: "Growing", done: "Done" },
-            measurements: { electric: "Electric", magnetic: "Magnetic", xrd: "XRD", edx: "EDX" },
+            measurements: { electric: "Electric", magnetic: "Magnetic", specificHeat: "Specific heat", xrd: "XRD", edx: "EDX" },
             documents: { pdf: "PDF" },
-            badges: { electric: "Elec", magnetic: "Mag", xrd: "XRD", edx: "EDX" },
+            badges: { electric: "Elec", magnetic: "Mag", specificHeat: "Heat", xrd: "XRD", edx: "EDX" },
             calc: { symbol: "Symbol", ratio: "Mol Ratio", molarMass: "Molar Mass (g/mol)", mass: "Actual Mass (g)", reference: "Ref", addElement: "Add Element", calcMass: "Calculate Mass" },
             upload: { dragPhoto: "Drag photos here, or ", dragXrd: "Drag XRD data or spectra here, or ", dragEdx: "Drag EDX spectra here, or ", dragData: "Drag .dat/.csv/.txt files here, or ", dragOther: "Drag any other files here, or ", clickUpload: "Click to Select", takePhoto: "Take Photo" }
         },
@@ -172,6 +172,7 @@ function updateI18n() {
     updateResultsLanguageUI();
     updateGrowthLanguageUI();
     updateExportSelectionCount();
+    updateChatLanguage();
 }
 
 function updateResultsLanguageUI() {
@@ -240,6 +241,7 @@ const toggleFail = document.getElementById('toggleFail');
 const togglePending = document.getElementById('togglePending');
 const toggleElectric = document.getElementById('toggleElectric');
 const toggleMagnetic = document.getElementById('toggleMagnetic');
+const toggleSpecificHeat = document.getElementById('toggleSpecificHeat');
 const toggleXRD = document.getElementById('toggleXRD');
 const toggleEDX = document.getElementById('toggleEDX');
 const togglePDF = document.getElementById('togglePDF');
@@ -484,6 +486,10 @@ function bindEvents() {
         e.preventDefault();
         toggleMagnetic.classList.toggle('active');
     });
+    toggleSpecificHeat.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleSpecificHeat.classList.toggle('active');
+    });
     if (toggleXRD) {
         toggleXRD.addEventListener('click', (e) => {
             e.preventDefault();
@@ -722,6 +728,7 @@ function updateCalcDisplays() {
     const tpText = targetProductInput.value || '-';
     sIds.forEach(el => el.textContent = sIdText);
     tps.forEach(el => el.textContent = tpText);
+    updateChatContext();
 }
 
 // ============================================================
@@ -766,6 +773,7 @@ async function loadSampleList(query = '') {
                         <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
                             ${s.has_electric ? '<span class="badge badge-elect" data-i18n="form.badges.electric">' + t('form.badges.electric') + '</span>' : ''}
                             ${s.has_magnetic ? '<span class="badge badge-magn" data-i18n="form.badges.magnetic">' + t('form.badges.magnetic') + '</span>' : ''}
+                            ${s.has_specific_heat ? '<span class="badge badge-heat" data-i18n="form.badges.specificHeat">' + t('form.badges.specificHeat') + '</span>' : ''}
                             ${s.has_xrd ? '<span class="badge badge-xrd" data-i18n="form.badges.xrd">' + t('form.badges.xrd') + '</span>' : ''}
                             ${s.has_edx ? '<span class="badge badge-edx" data-i18n="form.badges.edx">' + t('form.badges.edx') + '</span>' : ''}
                         </div>
@@ -872,6 +880,7 @@ function createNewSample() {
     
     toggleElectric.classList.remove('active');
     toggleMagnetic.classList.remove('active');
+    toggleSpecificHeat.classList.remove('active');
 
     // Clear sintering time
     sinteringStartInput.value = '';
@@ -935,6 +944,8 @@ function fillForm(sample) {
 
     if (sample.has_magnetic) toggleMagnetic.classList.add('active');
     else toggleMagnetic.classList.remove('active');
+
+    toggleSpecificHeat.classList.toggle('active', Boolean(sample.has_specific_heat));
 
     if (toggleXRD) {
         if (sample.has_xrd || (sample.xrd_images && sample.xrd_images.length > 0)) toggleXRD.classList.add('active');
@@ -1029,6 +1040,7 @@ async function saveSample() {
     
     const hasElectric = toggleElectric.classList.contains('active') ? 1 : 0;
     const hasMagnetic = toggleMagnetic.classList.contains('active') ? 1 : 0;
+    const hasSpecificHeat = toggleSpecificHeat.classList.contains('active') ? 1 : 0;
     const hasXrd = (toggleXRD && toggleXRD.classList.contains('active')) ? 1 : 0;
     const hasEdx = (toggleEDX && toggleEDX.classList.contains('active')) ? 1 : 0;
     const hasPdf = (togglePDF && togglePDF.classList.contains('active')) ? 1 : 0;
@@ -1062,6 +1074,7 @@ async function saveSample() {
         status: statusVal,
         has_electric: hasElectric,
         has_magnetic: hasMagnetic,
+        has_specific_heat: hasSpecificHeat,
         has_xrd: hasXrd,
         has_edx: hasEdx,
         has_pdf: hasPdf,
@@ -1159,6 +1172,7 @@ function cancelEdit() {
         fillForm(originalData);
         showToast(t('messages.restoredOriginal'), 'info');
     }
+    updateChatContext();
 }
 
 async function deleteSample() {
@@ -1176,6 +1190,7 @@ async function deleteSample() {
         emptyState.style.display = 'flex';
         currentSampleId = null;
         isEditing = false;
+        updateChatContext();
         await loadSampleList(searchInput.value);
     } catch (e) {
         showToast(e.message, 'error');
@@ -1217,6 +1232,7 @@ function copySample() {
 
     toggleElectric.classList.remove('active');
     toggleMagnetic.classList.remove('active');
+    toggleSpecificHeat.classList.remove('active');
     if (toggleXRD) toggleXRD.classList.remove('active');
     if (toggleEDX) toggleEDX.classList.remove('active');
     if (togglePDF) togglePDF.classList.remove('active');
