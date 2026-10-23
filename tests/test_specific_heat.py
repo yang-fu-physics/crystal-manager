@@ -73,4 +73,3 @@ def test_word_report_includes_specific_heat_in_measurements(client, lang, label,
     document = Document(BytesIO(response.data))
     row = next(row for row in document.tables[0].rows if row.cells[0].text == label)
     assert row.cells[1].text == measurement
-
