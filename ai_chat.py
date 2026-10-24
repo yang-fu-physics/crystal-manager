@@ -74,13 +74,13 @@ TOOLS = [
                        'required': ['query', 'offset']},
     }},
     {'type': 'function', 'function': {
-        'name': 'read_sample', 'description': 'Read one saved sample by exact ID before proposing an update.',
+        'name': 'read_sample', 'description': 'Read one saved sample by exact ID before proposing an update. When multiple IDs are known, prefer read_samples to separate calls.',
         'parameters': {'type': 'object', 'additionalProperties': False,
                        'properties': {'sample_id': {'type': 'string'}}, 'required': ['sample_id']},
     }},
     {'type': 'function', 'function': {
         'name': 'read_samples',
-        'description': 'Read up to 10 exact sample IDs together before comparing or proposing batch updates. Reports missing IDs explicitly.',
+        'description': 'Read up to 10 exact sample IDs together. Prefer this over separate read_sample calls when multiple IDs are known, including reference samples and candidate new IDs. missing_ids is expected for new IDs; reuse it without rechecking those IDs.',
         'parameters': {'type': 'object', 'additionalProperties': False,
                        'properties': {'sample_ids': {'type': 'array', 'minItems': 1, 'maxItems': MAX_BATCH_SIZE,
                                                      'items': {'type': 'string'}, 'uniqueItems': True}},
@@ -335,7 +335,7 @@ def chat(data, conversation_id):
     try:
         client = OpenAI(api_key=config.AI_CHAT_API_KEY, base_url=config.AI_CHAT_BASE_URL,
                         timeout=90, max_retries=0)
-        for _ in range(6):
+        for _ in range(12):
             response = client.chat.completions.create(model=config.AI_CHAT_MODEL, messages=messages, tools=TOOLS)
             message = response.choices[0].message
             if not message.tool_calls:
