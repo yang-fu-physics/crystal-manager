@@ -108,6 +108,8 @@ AI_CHAT_MODEL = "gpt-4o"
 
 没有向模型提供删除、任意代码执行、任意文件系统访问或直接写库工具。确认保存复用普通表单的样品保存逻辑，保留现有 Microsoft To Do 同步行为。
 
+一次聊天最多进行 12 轮模型调用，每轮可请求多个工具；达到上限仍未生成回复或有效方案时会明确报错。操作说明和读取工具描述要求优先批量读取已知编号，将参考样品和候选新编号合并查询，并复用本轮已有结果；候选新编号出现在 `missing_ids` 中是预期的查重结果，无需反复单查。批量读取不改变逐样品确认或“一个个来”的方案顺序。更多轮次为前置查询留出余量，也可能延长等待时间；提示规则能引导模型，但不保证每次都采用相同调用路径。
+
 工具调用协议参考 [OpenAI 官方 Function calling 文档](https://developers.openai.com/api/docs/guides/function-calling)，图片输入格式参考 [OpenAI Docs：Images and vision](https://developers.openai.com/api/docs/guides/images-vision)。
 
 ## 验证
