@@ -6,6 +6,8 @@ const chatCopy = {
         notice: '支持上传、粘贴和读取已存图片；每个样品分别确认保存。',
         inputLabel: '告诉助手要查找或修改什么', placeholder: '例如：把当前样品的烧制耗时改为 72 小时',
         reset: '新建会话', sessions: '历史会话（已登录设备共享）', refresh: '刷新会话',
+        delete: '删除', deleteConversation: '删除当前会话', deleting: '正在删除会话…',
+        deleteConfirm: '确定删除此会话？所有已登录设备都会失去这段聊天记录、聊天上传图片及确认／撤销卡片。已保存的样品和样品附件会保留。此操作不能在界面撤销。',
         loading: '正在加载会话…', expired: '方案已过期，请重新提出要求。',
         undoExpired: '已保存，撤销期限已过。', processing: '操作处理中；若结果未确认，请重新加载并核对样品。',
         send: '发送', attach: '添加图片', removeImage: '移除图片', imagePrompt: '请解读这些图片。',
@@ -35,6 +37,8 @@ const chatCopy = {
         notice: 'Upload, paste or read saved images. Confirm each sample separately.',
         inputLabel: 'What would you like to find or change?', placeholder: 'For example: change this sample’s sintering duration to 72 hours',
         reset: 'New conversation', sessions: 'History (shared by signed-in devices)', refresh: 'Refresh conversations',
+        delete: 'Delete', deleteConversation: 'Delete current conversation', deleting: 'Deleting conversation…',
+        deleteConfirm: 'Delete this conversation for all signed-in devices? Its messages, chat uploads, and confirmation/undo cards will be removed. Saved samples and sample attachments will remain. This cannot be undone in the chat.',
         loading: 'Loading conversation…', expired: 'Proposal expired. Describe your request again.',
         undoExpired: 'Saved. The undo period has expired.', processing: 'Operation processing. Reload and check the sample if the result is unknown.',
         send: 'Send', attach: 'Add images', removeImage: 'Remove image', imagePrompt: 'Please interpret these images.',
@@ -83,6 +87,7 @@ const chatImageInput = document.getElementById('aiChatImageInput');
 const chatImagePreviews = document.getElementById('aiChatImagePreviews');
 const chatConversations = document.getElementById('aiChatConversations');
 const chatRefresh = document.getElementById('aiChatRefresh');
+const chatDelete = document.getElementById('aiChatDelete');
 const chatStatus = document.getElementById('aiChatStatus');
 const chatSmallScreen = window.matchMedia('(max-width: 1350px)');
 let chatConversation = null;
@@ -151,6 +156,7 @@ function setChatBusy(busy, status = '') {
     chatReset.disabled = busy;
     chatConversations.disabled = busy;
     chatRefresh.disabled = busy;
+    chatDelete.disabled = busy || !chatConversation;
     chatInput.disabled = busy || !chatConversation;
     chatAttach.disabled = chatImageInput.disabled = busy || !chatConversation;
     chatImagePreviews.querySelectorAll('button').forEach(button => { button.disabled = busy; });
@@ -271,6 +277,17 @@ function setChatConversation(conversation) {
 }
 async function loadChatConversation(id) {
     setChatConversation(await chatRequest('/api/chat/conversations/' + encodeURIComponent(id)));
+}
+async function loadAvailableChatConversation(preferredId) {
+    await loadChatConversations();
+    const selected = chatConversationList.find(conversation => conversation.id === preferredId) || chatConversationList[0];
+    const previousId = chatConversation ? chatConversation.id : null;
+    if (selected) await loadChatConversation(selected.id);
+    else setChatConversation(await chatRequest('/api/chat/conversations', {method: 'POST'}));
+    if (chatConversation.id !== previousId) {
+        chatInput.value = '';
+        clearPendingChatImages();
+    }
 }
 function renderChatConversation() {
     chatMessages.replaceChildren();
@@ -420,13 +437,7 @@ async function sendChatMessage(event) {
 async function initializeChat() {
     setChatBusy(true, chatText('loading'));
     try {
-        await loadChatConversations();
-        const remembered = localStorage.getItem('crystal-chat-conversation');
-        const selected = chatConversationList.find(conversation => conversation.id === remembered) || chatConversationList[0];
-        if (selected) await loadChatConversation(selected.id);
-        else {
-            setChatConversation(await chatRequest('/api/chat/conversations', {method: 'POST'}));
-        }
+        await loadAvailableChatConversation(localStorage.getItem('crystal-chat-conversation'));
     } catch (error) {
         appendChatMessage('assistant', error.message, true);
     } finally { setChatBusy(false); }
@@ -495,12 +506,32 @@ chatConversations.addEventListener('change', async () => {
 chatRefresh.addEventListener('click', async () => {
     setChatBusy(true, chatText('loading'));
     try {
-        await loadChatConversations();
-        if (chatConversation) await loadChatConversation(chatConversation.id);
-        else await initializeChat();
+        await loadAvailableChatConversation(chatConversation ? chatConversation.id : null);
     } catch (error) {
         appendChatMessage('assistant', error.message, true);
     } finally { setChatBusy(false); }
+});
+chatDelete.addEventListener('click', async () => {
+    if (chatBusy || !chatConversation) return;
+    const conversation = chatConversation;
+    if (!confirm(chatText('deleteConfirm') + '\n\n' + (conversation.title || chatText('reset')))) return;
+    setChatBusy(true, chatText('deleting'));
+    try {
+        await chatRequest('/api/chat/conversations/' + encodeURIComponent(conversation.id), {
+            method: 'DELETE', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({revision: conversation.revision}),
+        });
+        chatConversation = null;
+        chatConversationList = chatConversationList.filter(item => item.id !== conversation.id);
+        localStorage.removeItem('crystal-chat-conversation');
+        chatInput.value = '';
+        clearPendingChatImages();
+        renderChatConversations();
+        showChatWelcome();
+        await loadAvailableChatConversation(null);
+    } catch (error) {
+        appendChatMessage('assistant', error.message, true);
+    } finally { setChatBusy(false); if (chatConversation) chatInput.focus(); }
 });
 chatPanel.addEventListener('keydown', event => {
     if (event.key === 'Escape') setChatOpen(false);
