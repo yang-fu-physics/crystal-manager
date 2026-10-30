@@ -356,7 +356,15 @@ body {
     font-size: 18px;
     color: var(--text-secondary);
     margin-top: 2px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
 }
+
+.sample-item-target { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sample-item-method { max-width: 45%; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sample-item-actual-product { font-size: 18px; color: var(--text-secondary); margin-top: 2px; overflow-wrap: anywhere; }
 
 .sample-item-date {
     font-size: 17px;
@@ -800,10 +808,12 @@ textarea::placeholder {
 /* ---------- Sintering Time Row ---------- */
 .sintering-time-row {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, .8fr) minmax(0, 1.2fr);
     gap: 16px;
     margin-bottom: 16px;
 }
+
+.sintering-time-row > .form-group { min-width: 0; }
 
 .sintering-start-wrap {
     display: flex;
@@ -1723,6 +1733,8 @@ input[type="datetime-local"]:focus {
         grid-template-columns: 1fr 1fr;
     }
 
+    .sintering-time-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
     .edx-content {
         grid-template-columns: 200px 1fr;
     }
@@ -2182,7 +2194,7 @@ input[type="datetime-local"]:focus {
         font-size: 24px !important;
     }
 
-    .sample-item-product, .sample-item-date {
+    .sample-item-product, .sample-item-actual-product, .sample-item-date {
         font-size: 22px !important;
     }
 

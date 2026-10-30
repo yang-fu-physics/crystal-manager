@@ -68,6 +68,7 @@ body.ai-chat-resizing, body.ai-chat-resizing * { cursor: col-resize !important; 
 }
 @container sample-panel (max-width: 1000px) {
     .form-grid { grid-template-columns: minmax(0, 1fr); }
+    .sintering-time-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .form-toolbar { flex-wrap: wrap; gap: 8px; }
     .toolbar-right { flex-wrap: wrap; }
     .element-calculator { overflow-x: auto; }

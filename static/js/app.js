@@ -27,10 +27,11 @@ const translations = {
             translateGrowthBtn: "en to cn", translateGrowthTitle: "将英文生长流程翻译为中文",
             sections: { basicInfo: "基本信息", growthProcess: "生长流程", results: "结果", notes: "额外备注", calculator: "元素比例 & 质量计算", photos: "实物照片", xrd: "XRD 衍射分析", edx: "EDX 能谱分析", dataFiles: "数据文件 (.dat)", otherFiles: "其他文件" },
             fields: { sampleId: "样品编号", targetProduct: "目标产物", status: "状态", measurements: "测量",
+                       growthMethod: "生长方法", actualProduct: "实际产物",
             documents: "文件",
                        sinteringStart: "开始烧制时间", sinteringDuration: "烧制耗时 (小时)", sinteringEnd: "结束时间",
                        sinteringNowBtn: "当前时间", sinteringNowTitle: "设为当前时间" },
-            placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthProcessZh: "描述晶体的生长方法、温度曲线、时间等参数...", growthProcessEn: "描述晶体的英文生长方法、温度曲线、时间等参数...", resultsZh: "实验结果描述...", resultsEn: "实验结果英文描述...", notes: "其他需要记录的信息..." },
+            placeholders: { sampleId: "例如: CG-2026-001", targetProduct: "例如: FeSi₂", growthMethod: "例如: 自助熔剂法、CVT、固相法", actualProduct: "填写实际得到的产物", growthProcessZh: "描述晶体的生长方法、温度曲线、时间等参数...", growthProcessEn: "描述晶体的英文生长方法、温度曲线、时间等参数...", resultsZh: "实验结果描述...", resultsEn: "实验结果英文描述...", notes: "其他需要记录的信息..." },
             status: { success: "成功", fail: "失败", pending: "待定", growing: "生长中", done: "生长完成" },
             measurements: { electric: "电学测量", magnetic: "磁性测量", specificHeat: "比热测量", xrd: "XRD", edx: "EDX" },
             documents: { pdf: "PDF" },
@@ -74,10 +75,11 @@ const translations = {
             translateGrowthBtn: "cn to en", translateGrowthTitle: "Translate Chinese growth process to English",
             sections: { basicInfo: "Basic Info", growthProcess: "Growth Process", results: "Results", notes: "Notes", calculator: "Element Ratios & Mass", photos: "Photos", xrd: "XRD Analysis", edx: "EDX Analysis", dataFiles: "Data Files (.dat)", otherFiles: "Other Files" },
             fields: { sampleId: "Sample ID", targetProduct: "Target Product", status: "Status", measurements: "Measurements",
+                       growthMethod: "Growth Method", actualProduct: "Actual Product",
             documents: "Files",
                        sinteringStart: "Sintering Start", sinteringDuration: "Duration (hours)", sinteringEnd: "End Time",
                        sinteringNowBtn: "Now", sinteringNowTitle: "Set to current time" },
-            placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthProcessZh: "Describe the growth method, temp profile, time, etc...", growthProcessEn: "Describe the English growth method, temp profile, time, etc...", resultsZh: "Chinese experiment results...", resultsEn: "Experiment results...", notes: "Any other notes..." },
+            placeholders: { sampleId: "e.g., CG-2026-001", targetProduct: "e.g., FeSi₂", growthMethod: "e.g., Self-flux, CVT, solid-state synthesis", actualProduct: "Enter the product actually obtained", growthProcessZh: "Describe the growth method, temp profile, time, etc...", growthProcessEn: "Describe the English growth method, temp profile, time, etc...", resultsZh: "Chinese experiment results...", resultsEn: "Experiment results...", notes: "Any other notes..." },
             status: { success: "Success", fail: "Fail", pending: "Pending", growing: "Growing", done: "Done" },
             measurements: { electric: "Electric", magnetic: "Magnetic", specificHeat: "Specific heat", xrd: "XRD", edx: "EDX" },
             documents: { pdf: "PDF" },
@@ -229,6 +231,8 @@ const sampleCountEl = document.getElementById('sampleCount');
 // Form fields
 const sampleIdInput = document.getElementById('sampleId');
 const targetProductInput = document.getElementById('targetProduct');
+const growthMethodInput = document.getElementById('growthMethod');
+const actualProductInput = document.getElementById('actualProduct');
 const growthProcessZhFieldInput = document.getElementById('growthProcessZhField');
 const growthProcessEnFieldInput = document.getElementById('growthProcessEnField');
 const resultsZhFieldInput = document.getElementById('resultsZhField');
@@ -780,7 +784,11 @@ async function loadSampleList(query = '') {
                         ${s.has_pdf ? '<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;"><span class="badge badge-pdf" data-i18n="form.documents.pdf" style="background:var(--danger);color:white;">' + (t('form.documents.pdf') || 'PDF') + '</span></div>' : ''}
                     </div>
                 </div>
-                <div class="sample-item-product">${escapeHtml(s.target_product || '\u2014')}</div>
+                <div class="sample-item-product">
+                    <span class="sample-item-target">${escapeHtml(s.target_product || '\u2014')}</span>
+                    ${s.growth_method ? `<span class="sample-item-method">${escapeHtml(s.growth_method)}</span>` : ''}
+                </div>
+                <div class="sample-item-actual-product"><span data-i18n="form.fields.actualProduct">${t('form.fields.actualProduct')}</span>：${escapeHtml(s.actual_product || '\u2014')}</div>
                 <div class="sample-item-date">${formatDate(s.sintering_start || s.created_at)}</div>
             </li>
         `).join('');
@@ -860,6 +868,8 @@ function createNewSample() {
     sampleIdInput.value = '';
     sampleIdInput.disabled = false;
     targetProductInput.value = '';
+    growthMethodInput.value = '';
+    actualProductInput.value = '';
     growthProcessZhFieldInput.value = '';
     growthProcessEnFieldInput.value = '';
     resultsZhFieldInput.value = '';
@@ -907,6 +917,8 @@ function fillForm(sample) {
     sampleIdInput.value = sample.id;
     sampleIdInput.disabled = false; // 允许修改 ID
     targetProductInput.value = sample.target_product || '';
+    growthMethodInput.value = sample.growth_method || '';
+    actualProductInput.value = sample.actual_product || '';
     growthProcessZhFieldInput.value = sample.growth_process || '';
     growthProcessEnFieldInput.value = sample.growth_process_en || '';
     resultsZhFieldInput.value = sample.results || '';
@@ -1071,6 +1083,8 @@ async function saveSample() {
     const data = {
         id: id,
         target_product: targetProductInput.value.trim(),
+        growth_method: growthMethodInput.value.trim(),
+        actual_product: actualProductInput.value.trim(),
         status: statusVal,
         has_electric: hasElectric,
         has_magnetic: hasMagnetic,
@@ -1209,8 +1223,10 @@ function copySample() {
     sampleIdInput.disabled = false;
     sampleIdInput.focus();
 
-    // 保留的字段：目标产物、中英文生长流程、元素比例、质量
+    // 保留的字段：目标产物、生长方法、中英文生长流程、元素比例、质量
     targetProductInput.value = originalData.target_product || '';
+    growthMethodInput.value = originalData.growth_method || '';
+    actualProductInput.value = '';
     growthProcessZhFieldInput.value = originalData.growth_process || '';
     growthProcessEnFieldInput.value = originalData.growth_process_en || '';
 

@@ -227,6 +227,10 @@ def _create_sample(data):
     if not data or not data.get('id'):
         return jsonify({'error': '样品编号不能为空'}), 400
 
+    for field in ('growth_method', 'actual_product'):
+        if field in data and (not isinstance(data[field], str) or len(data[field]) > 20000):
+            raise BadRequest(f'{field} 必须是长度不超过 20000 的文本')
+
     # 检查是否已存在
     existing = models.get_sample(data['id'])
     if existing:
@@ -273,6 +277,10 @@ def update_sample(sample_id):
 def _update_sample(sample_id, data, expected_sample=None):
     if not data:
         return jsonify({'error': '无效数据'}), 400
+
+    for field in ('growth_method', 'actual_product'):
+        if field in data and (not isinstance(data[field], str) or len(data[field]) > 20000):
+            raise BadRequest(f'{field} 必须是长度不超过 20000 的文本')
 
     existing = models.get_sample(sample_id)
     if not existing:
@@ -1291,6 +1299,8 @@ def export_sample_word(sample_id):
         
     add_row('样品编号' if lang == 'zh' else 'Sample ID', sample.get('id', ''))
     add_row('目标产物' if lang == 'zh' else 'Target Product', sample.get('target_product', ''))
+    add_row('生长方法' if lang == 'zh' else 'Growth Method', sample['growth_method'])
+    add_row('实际产物' if lang == 'zh' else 'Actual Product', sample['actual_product'])
     
     status_map_zh = {0: '失败', 1: '成功'}
     status_map_en = {0: 'Fail', 1: 'Success'}
