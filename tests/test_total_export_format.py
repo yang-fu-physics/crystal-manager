@@ -10,11 +10,13 @@ def _csv_rows(response):
     return list(reader(StringIO(response.data.decode("utf-8-sig"))))
 
 
-def test_total_csv_export_has_five_columns_and_embeds_element_ratio_in_growth_method(client):
+def test_total_csv_export_separates_method_actual_product_and_growth_process(client):
     models.create_sample(
         {
             "id": "total-zh",
             "target_product": "BiNiTe",
+            "growth_method": "自助熔剂法",
+            "actual_product": "Bi2Te3, NiTe2\n物相待定",
             "status": 1,
             "element_ratios": [
                 {"element": "Te", "ratio": 1},
@@ -32,13 +34,14 @@ def test_total_csv_export_has_five_columns_and_embeds_element_ratio_in_growth_me
 
     assert response.status_code == 200
     rows = _csv_rows(response)
-    assert rows[0] == ["编号", "目标样品", "是否成功", "结果中的文字", "生长方法"]
+    assert rows[0] == ["编号", "目标样品", "是否成功", "结果中的文字", "生长流程", "生长方法", "实际产物"]
     row = next(row for row in rows[1:] if row[0] == "total-zh")
-    assert len(row) == 5
+    assert len(row) == 7
     assert row[1] == "BiNiTe"
     assert row[2] == "成功"
     assert row[3] == "中文结果文字"
     assert row[4] == "元素比例：Bi2NiTe\n中文生长流程"
+    assert row[5:] == ["自助熔剂法", "Bi2Te3, NiTe2\n物相待定"]
 
 
 def test_total_csv_english_export_uses_english_fields_and_newline_growth_format(client):
@@ -46,6 +49,8 @@ def test_total_csv_english_export_uses_english_fields_and_newline_growth_format(
         {
             "id": "total-en",
             "target_product": "BiNiTe",
+            "growth_method": "CVT",
+            "actual_product": "Bi2Te3 + NiTe2",
             "status": 4,
             "element_ratios": [{"element": "Bi", "ratio": 1}],
             "growth_process": "中文生长流程",
@@ -59,13 +64,14 @@ def test_total_csv_english_export_uses_english_fields_and_newline_growth_format(
 
     assert response.status_code == 200
     rows = _csv_rows(response)
-    assert rows[0] == ["Sample ID", "Target Sample", "Status", "Result Text", "Growth Method"]
+    assert rows[0] == ["Sample ID", "Target Sample", "Status", "Result Text", "Growth Process", "Growth Method", "Actual Product"]
     row = next(row for row in rows[1:] if row[0] == "total-en")
-    assert len(row) == 5
+    assert len(row) == 7
     assert row[1] == "BiNiTe"
     assert row[2] == "Done"
     assert row[3] == "English result text"
     assert row[4] == "Element Ratio: Bi\nEnglish growth process"
+    assert row[5:] == ["CVT", "Bi2Te3 + NiTe2"]
     assert "中文生长流程" not in row
     assert "中文结果文字" not in row
 
@@ -113,5 +119,6 @@ def test_total_csv_does_not_fallback_when_target_language_fields_are_empty(clien
 
     assert row[3] == ""
     assert row[4] == "Element Ratio: Fe"
+    assert row[5:] == ["", ""]
     assert "仅中文生长流程" not in row
     assert "仅中文结果" not in row

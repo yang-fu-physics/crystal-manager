@@ -16,6 +16,8 @@ def _sample(sample_id, **overrides):
     data = {
         "id": sample_id,
         "target_product": f"Target-{sample_id}",
+        "growth_method": f"Method-{sample_id}",
+        "actual_product": f"Actual-{sample_id}",
         "status": 1,
         "growth_process": f"Chinese process {sample_id}",
         "growth_process_en": f"English process {sample_id}",
@@ -31,7 +33,7 @@ def _db_snapshot():
     try:
         rows = conn.execute(
             "SELECT id, target_product, is_successful, growth_process, "
-            "growth_process_en, results, results_en FROM samples ORDER BY id"
+            "growth_process_en, results, results_en, growth_method, actual_product FROM samples ORDER BY id"
         ).fetchall()
     finally:
         conn.close()
@@ -54,6 +56,7 @@ def test_post_csv_exports_only_selected_samples_in_reverse_current_order(client)
     rows = _csv_rows(response)
     assert [row[0] for row in rows[1:]] == list(reversed(selected_ids))
     assert len(rows) == 3
+    assert all(row[5:] == [f"Method-{row[0]}", f"Actual-{row[0]}"] for row in rows[1:])
 
 
 def test_post_pptx_exports_only_selected_samples_in_reverse_current_order(client):
@@ -77,6 +80,10 @@ def test_post_pptx_exports_only_selected_samples_in_reverse_current_order(client
         for sample in reversed(selected_samples)
     ]
     assert [slide.shapes[0].text for slide in list(presentation.slides)[1:]] == expected_titles
+    for sample, slide in zip(reversed(selected_samples), list(presentation.slides)[1:]):
+        texts = [shape.text for shape in slide.shapes if shape.has_text_frame]
+        assert sample['growth_method'] in texts
+        assert sample['actual_product'] in texts
 
 
 def test_selected_exports_keep_language_specific_fields(client):
@@ -109,6 +116,7 @@ def test_selected_exports_keep_language_specific_fields(client):
     assert "English growth only" in en_row[4]
     assert "Chinese only" not in en_row
     assert "Chinese growth only" not in en_row
+    assert zh_row[5:] == en_row[5:] == ["Method-sample-language", "Actual-sample-language"]
 
 
 def test_get_exports_reverse_current_order_for_all_samples(client):
