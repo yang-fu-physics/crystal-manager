@@ -61,6 +61,7 @@ const chatCopy = {
 };
 const chatFields = {
     target_product: ['目标产物', 'Target product'], status: ['状态', 'Status'],
+    growth_method: ['生长方法', 'Growth method'], actual_product: ['实际产物', 'Actual product'],
     growth_process: ['生长流程（中文）', 'Growth procedure (Chinese)'], growth_process_en: ['生长流程（英文）', 'Growth procedure (English)'],
     results: ['结果（中文）', 'Results (Chinese)'], results_en: ['结果（英文）', 'Results (English)'],
     notes: ['备注', 'Notes'], sintering_start: ['烧制开始时间', 'Sintering start'],

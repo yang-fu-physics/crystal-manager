@@ -78,6 +78,8 @@ def test_pptx_zh_export_has_one_slide_per_sample_and_requested_vertical_regions(
         {
             "id": "ppt-zh",
             "target_product": "BiNiTe",
+            "growth_method": "自助熔剂法",
+            "actual_product": "Bi2Te3 + NiTe2",
             "status": 1,
             "element_ratios": [
                 {"element": "Te", "ratio": 1},
@@ -99,14 +101,22 @@ def test_pptx_zh_export_has_one_slide_per_sample_and_requested_vertical_regions(
     assert len(presentation.slides) == 2
     slide = presentation.slides[1]
     assert slide.shapes[0].text == "ppt-zh-BiNiTe-成功"
-    assert _shape_with_text(slide, "结果").top < _shape_with_text(slide, "生长方法").top
+    assert _shape_with_text(slide, "结果").top < _shape_with_text(slide, "生长流程").top
     assert _shape_with_text(slide, "中文结果文字")
     assert _shape_with_text(slide, "元素比例：Bi2NiTe\n中文生长方法")
+    assert _shape_with_text(slide, "自助熔剂法")
+    assert _shape_with_text(slide, "Bi2Te3 + NiTe2")
+    method_label = _shape_with_text(slide, "生长方法")
+    product_label = _shape_with_text(slide, "实际产物")
+    assert method_label.top == product_label.top
+    assert method_label.left + method_label.width <= product_label.left
     growth_box = next(
         shape for shape in slide.shapes
         if not shape.text and shape.top == Inches(4.4)
     )
     assert growth_box.height == Inches(1.25)
+    assert growth_box.top + growth_box.height < method_label.top
+    assert all(shape.top + shape.height <= presentation.slide_height for shape in slide.shapes)
     assert "English result text" not in "\n".join(shape.text for shape in _text_shapes(slide))
     assert "English growth method" not in "\n".join(shape.text for shape in _text_shapes(slide))
     assert all(name == "Microsoft YaHei" for shape in _text_shapes(slide) for name in _shape_font_names(shape))
@@ -118,6 +128,8 @@ def test_pptx_en_export_uses_english_fields_times_new_roman_and_failure_color(cl
         {
             "id": "ppt-en",
             "target_product": "BiNiTe",
+            "growth_method": "CVT",
+            "actual_product": "Bi2Te3 + NiTe2",
             "status": 0,
             "element_ratios": [{"element": "Bi", "ratio": 1}],
             "growth_process": "中文生长方法",
@@ -135,6 +147,10 @@ def test_pptx_en_export_uses_english_fields_times_new_roman_and_failure_color(cl
     assert slide.shapes[0].text == "ppt-en-BiNiTe-Fail"
     assert _shape_with_text(slide, "Results")
     assert _shape_with_text(slide, "Growth Method")
+    assert _shape_with_text(slide, "Growth Process")
+    assert _shape_with_text(slide, "Actual Product")
+    assert _shape_with_text(slide, "CVT")
+    assert _shape_with_text(slide, "Bi2Te3 + NiTe2")
     assert _shape_with_text(slide, "English result text")
     assert _shape_with_text(slide, "Element Ratio: Bi\nEnglish growth method")
     all_text = "\n".join(shape.text for shape in _text_shapes(slide))
@@ -182,6 +198,9 @@ def test_pptx_export_keeps_missing_target_language_text_empty_without_fallback(c
     all_text = "\n".join(shape.text for shape in _text_shapes(slide))
     assert "仅中文生长方法" not in all_text
     assert "仅中文结果" not in all_text
+    assert _shape_with_text(slide, "Growth Method")
+    assert _shape_with_text(slide, "Actual Product")
+    assert "Target" not in [shape.text for shape in _text_shapes(slide)]
     assert not any(shape.text == "Element Ratio: " for shape in _text_shapes(slide))
 
 

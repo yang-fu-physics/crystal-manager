@@ -26,6 +26,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS samples (
             id TEXT PRIMARY KEY,
             target_product TEXT DEFAULT '',
+            growth_method TEXT NOT NULL DEFAULT '',
+            actual_product TEXT NOT NULL DEFAULT '',
             is_successful INTEGER DEFAULT 2,
             has_electric INTEGER DEFAULT 0,
             has_magnetic INTEGER DEFAULT 0,
@@ -133,6 +135,12 @@ has_pdf INTEGER DEFAULT 0,
                 FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
             )
         """)
+
+    # Growth method and observed product are independent of existing text fields.
+    sample_columns = {row['name'] for row in cursor.execute('PRAGMA table_info(samples)')}
+    for field in ('growth_method', 'actual_product'):
+        if field not in sample_columns:
+            cursor.execute(f"ALTER TABLE samples ADD COLUMN {field} TEXT NOT NULL DEFAULT ''")
 
     # Dynamic migration for bilingual growth process
     try:
@@ -248,9 +256,9 @@ def get_all_samples(query=None, sort_mode='date'):
                     EXISTS(SELECT 1 FROM xrd_images x WHERE x.sample_id = s.id) as has_xrd_images,
                     EXISTS(SELECT 1 FROM edx_images e WHERE e.sample_id = s.id) as has_edx_images
                    FROM samples s
-                   WHERE s.id LIKE ? OR s.target_product LIKE ? OR s.notes LIKE ? OR s.results LIKE ? OR s.results_en LIKE ? OR s.growth_process LIKE ? OR s.growth_process_en LIKE ?
+                   WHERE s.id LIKE ? OR s.target_product LIKE ? OR s.notes LIKE ? OR s.results LIKE ? OR s.results_en LIKE ? OR s.growth_process LIKE ? OR s.growth_process_en LIKE ? OR s.growth_method LIKE ? OR s.actual_product LIKE ?
                    {ORDER_CLAUSE}""",
-                (q, q, q, q, q, q, q)
+                (q, q, q, q, q, q, q, q, q)
             ).fetchall()
         else:
             rows = conn.execute(f"""SELECT s.*,
@@ -317,8 +325,9 @@ def create_sample(data):
             """INSERT INTO samples (id, target_product, is_successful, has_electric, has_magnetic, has_specific_heat, has_xrd, has_edx, has_pdf, growth_process, growth_process_en,
                element_ratios, actual_masses, notes, results, results_en,
                sintering_start, sintering_duration, sintering_end,
+               growth_method, actual_product,
                created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 data['id'],
                 data.get('target_product', ''),
@@ -339,6 +348,8 @@ def create_sample(data):
                 data.get('sintering_start', ''),
                 data.get('sintering_duration', None),
                 data.get('sintering_end', ''),
+                data.get('growth_method', ''),
+                data.get('actual_product', ''),
                 now, now
             )
         )
@@ -375,10 +386,10 @@ def update_sample(sample_id, data, expected_sample=None):
                 """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_specific_heat=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?, results_en=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
-                   updated_at=?
+                   growth_method=COALESCE(?, growth_method), actual_product=COALESCE(?, actual_product), updated_at=?
                    WHERE id=?""",
                 (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_specific_heat', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
-            data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
+            data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), data.get('growth_method'), data.get('actual_product'), now, sample_id)
             )
             
             for table in ['photos', 'edx_images', 'xrd_images', 'data_files', 'other_files', 'todo_tasks']:
@@ -421,10 +432,10 @@ def update_sample(sample_id, data, expected_sample=None):
                 """UPDATE samples SET id=?, target_product=?, is_successful=?, has_electric=?, has_magnetic=?, has_specific_heat=?, has_xrd=?, has_edx=?, has_pdf=?, growth_process=?, growth_process_en=?,
                    element_ratios=?, actual_masses=?, notes=?, results=?, results_en=?,
                    sintering_start=?, sintering_duration=?, sintering_end=?,
-                   updated_at=?
+                   growth_method=COALESCE(?, growth_method), actual_product=COALESCE(?, actual_product), updated_at=?
                    WHERE id=?""",
                 (new_id, data.get('target_product', ''), data.get('status', 2), data.get('has_electric', 0), data.get('has_magnetic', 0), data.get('has_specific_heat', 0), data.get('has_xrd', 0), data.get('has_edx', 0),
-            data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), now, sample_id)
+            data.get('has_pdf', 0), data.get('growth_process', ''), data.get('growth_process_en', ''), json.dumps(data.get('element_ratios', []), ensure_ascii=False), json.dumps(data.get('actual_masses', []), ensure_ascii=False), data.get('notes', ''), data.get('results', ''), data.get('results_en', ''), data.get('sintering_start', ''), data.get('sintering_duration', None), data.get('sintering_end', ''), data.get('growth_method'), data.get('actual_product'), now, sample_id)
             )
             conn.commit()
     finally:

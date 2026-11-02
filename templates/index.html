@@ -144,6 +144,10 @@
                             <input type="text" id="targetProduct" placeholder="例如: FeSi₂" data-i18n-placeholder="form.placeholders.targetProduct">
                         </div>
                         <div class="form-group">
+                            <label for="actualProduct" data-i18n="form.fields.actualProduct">实际产物</label>
+                            <input type="text" id="actualProduct" maxlength="20000" placeholder="填写实际得到的产物" data-i18n-placeholder="form.placeholders.actualProduct">
+                        </div>
+                        <div class="form-group">
                             <label data-i18n="form.fields.status">状态</label>
                             <div class="toggle-group">
                                 <button class="toggle-btn active" id="toggleSuccess" data-value="1">✅ <span data-i18n="form.status.success">成功</span></button>
@@ -192,8 +196,12 @@
                             </div>
                         </div>
                     </div>
-                    <!-- 烧制时间行 -->
+                    <!-- 生长方法与烧制时间 -->
                     <div class="sintering-time-row">
+                        <div class="form-group">
+                            <label for="growthMethod" data-i18n="form.fields.growthMethod">生长方法</label>
+                            <input type="text" id="growthMethod" maxlength="20000" placeholder="例如: 自助熔剂法、CVT、固相法" data-i18n-placeholder="form.placeholders.growthMethod">
+                        </div>
                         <div class="form-group">
                             <label data-i18n="form.fields.sinteringStart">开始烧制时间</label>
                             <div class="sintering-start-wrap">

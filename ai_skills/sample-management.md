@@ -80,6 +80,13 @@ experimental conditions, weighing mass, measurement flags, or results.
 
 ## Changing growth procedures and schedules
 
+- `growth_method` is the short preparation method (such as self-flux, CVT or
+  solid-state synthesis); `growth_process` is the detailed temperature program.
+  Keep these independent. `target_product` is the intended product, while
+  `actual_product` records the product actually obtained. Only set actual product
+  from the operator's stated observations or explicit request; never infer it
+  from the target, success status or a predicted outcome. Updating either new
+  field uses the same per-sample confirmation and undo flow.
 - Read the sample before an update. Send only fields explicitly requested to
   change. `growth_process` is Chinese; `growth_process_en` is English. Results use
   `results` / `results_en`. Preserve the other language unless translation was

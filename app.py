@@ -227,6 +227,10 @@ def _create_sample(data):
     if not data or not data.get('id'):
         return jsonify({'error': '样品编号不能为空'}), 400
 
+    for field in ('growth_method', 'actual_product'):
+        if field in data and (not isinstance(data[field], str) or len(data[field]) > 20000):
+            raise BadRequest(f'{field} 必须是长度不超过 20000 的文本')
+
     # 检查是否已存在
     existing = models.get_sample(data['id'])
     if existing:
@@ -273,6 +277,10 @@ def update_sample(sample_id):
 def _update_sample(sample_id, data, expected_sample=None):
     if not data:
         return jsonify({'error': '无效数据'}), 400
+
+    for field in ('growth_method', 'actual_product'):
+        if field in data and (not isinstance(data[field], str) or len(data[field]) > 20000):
+            raise BadRequest(f'{field} 必须是长度不超过 20000 的文本')
 
     existing = models.get_sample(sample_id)
     if not existing:
@@ -1001,7 +1009,7 @@ def _format_export_status(status, lang):
     return lang_labels.get(status, lang_labels[2])
 
 
-def _format_export_growth_method(sample, lang):
+def _format_export_growth_process(sample, lang):
     """将元素比例和对应语言的生长流程合并为一个导出单元格"""
     ratio = _format_element_ratios(sample.get('element_ratios', []))
     growth_key = 'growth_process_en' if lang == 'en' else 'growth_process'
@@ -1054,9 +1062,9 @@ def export_samples():
 
     # 写入表头
     if lang == 'en':
-        writer.writerow(['Sample ID', 'Target Sample', 'Status', 'Result Text', 'Growth Method'])
+        writer.writerow(['Sample ID', 'Target Sample', 'Status', 'Result Text', 'Growth Process', 'Growth Method', 'Actual Product'])
     else:
-        writer.writerow(['编号', '目标样品', '是否成功', '结果中的文字', '生长方法'])
+        writer.writerow(['编号', '目标样品', '是否成功', '结果中的文字', '生长流程', '生长方法', '实际产物'])
 
     # 写入数据
     for sample in samples:
@@ -1066,7 +1074,9 @@ def export_samples():
             sample.get('target_product', ''),
             _format_export_status(sample.get('is_successful', 2), lang),
             sample.get(result_key, '') or '',
-            _format_export_growth_method(sample, lang),
+            _format_export_growth_process(sample, lang),
+            sample['growth_method'],
+            sample['actual_product'],
         ])
 
     # 生成响应
@@ -1109,7 +1119,9 @@ def export_samples_pptx():
     blank_layout = presentation.slide_layouts[6]
     font_name = 'Times New Roman' if lang == 'en' else 'Microsoft YaHei'
     result_title = 'Results' if lang == 'en' else '结果'
-    growth_title = 'Growth Method' if lang == 'en' else '生长方法'
+    growth_title = 'Growth Process' if lang == 'en' else '生长流程'
+    method_title = 'Growth Method' if lang == 'en' else '生长方法'
+    actual_product_title = 'Actual Product' if lang == 'en' else '实际产物'
 
     def set_run_font(run, size, color, bold=False):
         run.font.name = font_name
@@ -1138,18 +1150,18 @@ def export_samples_pptx():
             set_run_font(run, size, color, bold)
         return textbox
 
-    def add_text_region(slide, top, label, text, height):
-        add_textbox(slide, 0.7, top, 11.9, 0.34, label, 15, RGBColor(75, 85, 99), True)
+    def add_text_region(slide, top, label, text, height, *, left=0.7, width=11.9):
+        add_textbox(slide, left, top, width, 0.34, label, 15, RGBColor(75, 85, 99), True)
         box = slide.shapes.add_shape(
             MSO_SHAPE.ROUNDED_RECTANGLE,
-            Inches(0.7), Inches(top + 0.4), Inches(11.9), Inches(height),
+            Inches(left), Inches(top + 0.4), Inches(width), Inches(height),
         )
         box.fill.solid()
         box.fill.fore_color.rgb = RGBColor(247, 248, 251)
         box.line.color.rgb = RGBColor(221, 226, 235)
         box.line.width = Pt(0.8)
         text_box = add_textbox(
-            slide, 0.86, top + 0.52, 11.58, height - 0.22,
+            slide, left + 0.16, top + 0.52, width - 0.32, height - 0.22,
             text, 16, RGBColor(31, 41, 55), False,
         )
         return text_box
@@ -1233,13 +1245,15 @@ def export_samples_pptx():
         title = f"{sample.get('id') or ''}-{sample.get('target_product') or ''}-{status_label}"
         result_key = 'results_en' if lang == 'en' else 'results'
         result_text = sample.get(result_key, '') or ''
-        growth_method = _format_export_growth_method(sample, lang)
+        growth_process = _format_export_growth_process(sample, lang)
 
         # Title is deliberately the first shape so its color is easy to inspect and edit.
         add_textbox(slide, 0.7, 0.35, 11.9, 0.62, title, 25, title_color, True)
         add_text_region(slide, 1.25, result_title, result_text, 1.95)
-        # Reserve a stable three-line area for the growth method.
-        add_text_region(slide, 4.0, growth_title, growth_method, 1.25)
+        # Reserve a stable three-line area for the growth process.
+        add_text_region(slide, 4.0, growth_title, growth_process, 1.25)
+        add_text_region(slide, 5.9, method_title, sample['growth_method'], 0.75, width=5.8)
+        add_text_region(slide, 5.9, actual_product_title, sample['actual_product'], 0.75, left=6.8, width=5.8)
 
     output = BytesIO()
     presentation.save(output)
@@ -1291,6 +1305,8 @@ def export_sample_word(sample_id):
         
     add_row('样品编号' if lang == 'zh' else 'Sample ID', sample.get('id', ''))
     add_row('目标产物' if lang == 'zh' else 'Target Product', sample.get('target_product', ''))
+    add_row('生长方法' if lang == 'zh' else 'Growth Method', sample['growth_method'])
+    add_row('实际产物' if lang == 'zh' else 'Actual Product', sample['actual_product'])
     
     status_map_zh = {0: '失败', 1: '成功'}
     status_map_en = {0: 'Fail', 1: 'Success'}

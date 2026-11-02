@@ -22,7 +22,7 @@ from molmass_data import elenmentsmasstable
 
 
 TEXT_FIELDS = (
-    'target_product', 'growth_process', 'growth_process_en',
+    'target_product', 'growth_method', 'actual_product', 'growth_process', 'growth_process_en',
     'results', 'results_en', 'notes',
 )
 FLAG_FIELDS = ('has_electric', 'has_magnetic', 'has_specific_heat', 'has_xrd', 'has_edx', 'has_pdf')
