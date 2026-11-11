@@ -340,8 +340,14 @@ def chat_conversations():
     return response
 
 
-@app.route('/api/chat/conversations/<conversation_id>', methods=['GET'])
+@app.route('/api/chat/conversations/<conversation_id>', methods=['GET', 'DELETE'])
 def chat_conversation(conversation_id):
+    if request.method == 'DELETE':
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or set(data) != {'revision'} or type(data['revision']) is not int:
+            raise BadRequest('请提供待删除会话的版本')
+        chat_history.delete_conversation(conversation_id, data['revision'])
+        return jsonify(deleted=True)
     response = jsonify(chat_history.get_conversation(conversation_id))
     response.cache_control.no_store = True
     return response

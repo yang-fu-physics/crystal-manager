@@ -63,6 +63,30 @@ def create_conversation():
     return get_conversation(conversation_id)
 
 
+def delete_conversation(conversation_id, revision):
+    conn = models.get_db()
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        conversation = conn.execute('SELECT revision FROM chat_conversations WHERE id = ?',
+                                    (conversation_id,)).fetchone()
+        if conversation is None:
+            raise NotFound('会话不存在')
+        if conversation['revision'] != revision:
+            raise Conflict('会话已在其他页面更新，请刷新会话后再删除')
+        if conn.execute("SELECT 1 FROM chat_messages WHERE conversation_id = ? AND state IN ('confirming', 'undoing')",
+                        (conversation_id,)).fetchone() is not None:
+            raise Conflict('此会话有保存或撤销操作正在处理，请完成后再删除')
+        images = conn.execute(
+            'SELECT i.id FROM chat_images i JOIN chat_messages m ON m.id = i.message_id '
+            'WHERE m.conversation_id = ?', (conversation_id,)).fetchall()
+        for image in images:
+            image_path(image['id']).unlink(missing_ok=True)
+        conn.execute('DELETE FROM chat_conversations WHERE id = ?', (conversation_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def get_image(image_id):
     conn = models.get_db()
     try:
