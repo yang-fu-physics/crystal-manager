@@ -1,4 +1,13 @@
-/* AI text is rendered as plain text. Only a signed proposal can be confirmed. */
+/* Model replies are Markdown. Only a signed proposal can be confirmed. */
+const chatMarkdown = window.markdownit({html: false, breaks: true});
+chatMarkdown.renderer.rules.image = (tokens, index, options, env, renderer) =>
+    chatMarkdown.utils.escapeHtml(renderer.renderInlineAsText(tokens[index].children, options, env));
+chatMarkdown.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
+    tokens[index].attrSet('target', '_blank');
+    tokens[index].attrSet('rel', 'noopener noreferrer');
+    return renderer.renderToken(tokens, index, options);
+};
+
 const chatCopy = {
     zh: {
         title: 'AI 样品助手', close: '收起助手', history: '聊天记录',
@@ -223,8 +232,12 @@ function addChatImages(files) {
 }
 function appendChatMessage(role, text, error = false, images = []) {
     const message = chatElement('div', `ai-chat-message ai-chat-${role}${error ? ' ai-chat-error' : ''}`);
-    message.append(chatElement('small', '', chatText(role === 'user' ? 'user' : 'assistant')),
-        chatElement('div', '', text));
+    const body = chatElement('div', '', text);
+    if (role === 'assistant' && !error) {
+        body.className = 'ai-chat-markdown';
+        body.innerHTML = chatMarkdown.render(text);
+    }
+    message.append(chatElement('small', '', chatText(role === 'user' ? 'user' : 'assistant')), body);
     if (images.length) {
         const gallery = chatElement('div', 'ai-chat-message-images');
         images.forEach(image => gallery.append(chatImagePreview(image)));
