@@ -313,7 +313,6 @@ def stream_completion(client, messages):
                 continue
             choice = chunk.choices[0]
             delta = choice.delta
-            had_visible_content = bool(content and not tool_calls)
             if delta.content:
                 content.append(delta.content)
             for part in delta.tool_calls or ():
@@ -329,9 +328,7 @@ def stream_completion(client, messages):
                         call['function']['arguments'] += part.function.arguments
             if choice.finish_reason:
                 finish_reason = choice.finish_reason
-            if tool_calls and had_visible_content:
-                yield {'type': 'reset'}
-            elif delta.content and not tool_calls:
+            if delta.content:
                 yield {'type': 'delta', 'text': delta.content}
             else:
                 yield {'type': 'progress'}
@@ -522,13 +519,16 @@ def chat_events(data, conversation_id, *, streaming=True):
             if image_content:
                 messages.append({'role': 'user', 'content': image_content})
             if proposals and not had_tool_error and not image_content:
-                result = {'reply': ('请逐个核对下方方案；每个样品点击确认保存后才会写入。' if lang == 'zh'
-                                   else 'Review each proposal below. Each sample is saved only after you confirm its card.'),
-                          'proposals': proposals}
+                review = ('请逐个核对下方方案；每个样品点击确认保存后才会写入。' if lang == 'zh'
+                          else 'Review each proposal below. Each sample is saved only after you confirm its card.')
+                text = (message.content or '').strip()
+                result = {'reply': f'{text}\n\n{review}' if text else review, 'proposals': proposals}
                 break
             if proposals:
                 messages.append({'role': 'system', 'content':
                                  'Some tools failed or new images were just attached. No proposal from this round was retained or saved. Inspect the images, correct any errors and prepare the complete set again.'})
+            if streaming and message.content:
+                yield {'type': 'reset'}
         else:
             raise BadGateway('AI 工具调用次数过多，请缩小本次操作范围')
     except (OpenAIError, TransportError) as exc:

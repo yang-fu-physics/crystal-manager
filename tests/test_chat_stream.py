@@ -71,7 +71,7 @@ def test_stream_sends_text_before_committing_history(client, monkeypatch):
     assert upstream.closed
 
 
-def test_stream_assembles_tool_arguments_and_keeps_confirmation(client, monkeypatch):
+def test_stream_assembles_tool_arguments_and_keeps_text_with_confirmation(client, monkeypatch):
     first = ModelStream(
         ({'content': '正在读取'}, None),
         ({'tool_calls': [
@@ -87,26 +87,36 @@ def test_stream_assembles_tool_arguments_and_keeps_confirmation(client, monkeypa
         ({}, 'tool_calls'),
     )
     second = ModelStream(
-        ({'tool_calls': [
+        ({'content': '建议新建 **NEW**。', 'tool_calls': [
             {'index': 0, 'id': 'proposal', 'type': 'function',
              'function': {'name': 'propose_sample_change', 'arguments': '{"operation":"create",'}},
         ]}, None),
         ({'tool_calls': [
             {'index': 0, 'function': {'arguments': '"sample_id":"NEW","changes":{"target_product":"FeSe"}}'}},
-        ]}, 'tool_calls'),
+        ]}, None),
+        ({'content': '目标产物为 FeSe。'}, 'tool_calls'),
     )
     requests = model_streams(monkeypatch, first, second)
     _, response = start_reply(client)
     with response:
         events = [json.loads(event) for event in response.response]
-    assert {'type': 'reset'} in events
-    assert [event['text'] for event in events if event['type'] == 'delta'] == ['正在读取']
+    visible_events = [event for event in events if event['type'] in ('delta', 'reset')]
+    assert visible_events == [
+        {'type': 'delta', 'text': '正在读取'},
+        {'type': 'reset'},
+        {'type': 'delta', 'text': '建议新建 **NEW**。'},
+        {'type': 'delta', 'text': '目标产物为 FeSe。'},
+    ]
     tool_results = [m for m in requests[1]['messages'] if m['role'] == 'tool']
     assert [m['tool_call_id'] for m in tool_results] == ['find', 'read']
     assert json.loads(tool_results[1]['content'])['missing_ids'] == ['NEW']
     assert events[-1]['type'] == 'complete'
     card = events[-1]['conversation']['messages'][-1]
     assert card['state'] == 'pending'
+    assert card['content'] == (
+        '建议新建 **NEW**。目标产物为 FeSe。\n\n'
+        '请逐个核对下方方案；每个样品点击确认保存后才会写入。'
+    )
     assert models.get_sample('NEW') is None
     assert client.post('/api/chat/confirm', json={'token': card['proposal']['token']}).status_code == 201
     assert models.get_sample('NEW')['target_product'] == 'FeSe'
