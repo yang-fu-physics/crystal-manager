@@ -11,7 +11,8 @@ import csv
 from pathlib import Path
 from io import BytesIO, StringIO
 from datetime import datetime
-from flask import Flask, request, jsonify, render_template, send_from_directory, send_file, session, redirect, url_for
+from contextlib import closing
+from flask import Flask, Response, request, jsonify, render_template, send_from_directory, send_file, session, redirect, url_for, stream_with_context
 from werkzeug.exceptions import BadRequest, Conflict, HTTPException
 from functools import wraps
 from PIL import Image
@@ -381,8 +382,28 @@ def sample_chat():
         if not filename or len(filename) > 255 or Path(filename).suffix.lower() not in ai_chat.IMAGE_EXTENSIONS:
             raise BadRequest('请上传 PNG、JPEG、WEBP、GIF、BMP 或 TIFF 图片，文件名不超过 255 字符')
         images.append({'id': uuid.uuid4().hex, 'filename': filename, 'jpeg': ai_chat.image_jpeg(file.stream)})
-    result = ai_chat.chat({**data, 'messages': chat_history.model_messages(conversation, data['message']), 'images': images},
-                          conversation['id'])
+    model_data = {**data, 'messages': chat_history.model_messages(conversation, data['message']), 'images': images}
+    if request.accept_mimetypes.best_match(('application/json', 'application/x-ndjson')) == 'application/x-ndjson':
+        return Response(stream_with_context(stream_sample_chat(model_data, conversation, images)),
+                        mimetype='application/x-ndjson', headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
+    result = ai_chat.chat(model_data, conversation['id'])
+    return jsonify(save_chat_turn(conversation, data['message'], result, images))
+
+
+def stream_sample_chat(data, conversation, images):
+    yield '{"type":"progress"}\n'
+    try:
+        with closing(ai_chat.chat_events(data, conversation['id'])) as events:
+            for event in events:
+                if event['type'] == 'complete':
+                    result = save_chat_turn(conversation, data['message'], event['result'], images)
+                    event = {'type': 'complete', 'conversation': result['conversation']}
+                yield json.dumps(event, ensure_ascii=False) + '\n'
+    except HTTPException as exc:
+        yield json.dumps({'type': 'error', 'error': exc.description}, ensure_ascii=False) + '\n'
+
+
+def save_chat_turn(conversation, content, result, images):
     written = []
     saved = False
     try:
@@ -391,14 +412,14 @@ def sample_chat():
             path.parent.mkdir(parents=True, exist_ok=True)
             written.append(path)
             path.write_bytes(image['jpeg'])
-        result['conversation'] = chat_history.append_turn(conversation, data['message'], result, images)
+        result['conversation'] = chat_history.append_turn(conversation, content, result, images)
         saved = True
     finally:
         if not saved:
             for path in written:
                 path.unlink(missing_ok=True)
     result['proposal'] = result['proposals'][0] if len(result['proposals']) == 1 else None
-    return jsonify(result)
+    return result
 
 
 @app.route('/api/chat/images/<image_id>', methods=['GET'])

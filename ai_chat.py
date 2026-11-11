@@ -10,8 +10,10 @@ from pathlib import Path
 import uuid
 
 from flask import current_app
+from httpx import TransportError
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from openai import OpenAI, OpenAIError
+from openai.types.chat import ChatCompletionMessage
 from PIL import Image, ImageOps
 from werkzeug.exceptions import BadGateway, BadRequest, Conflict, NotFound
 
@@ -297,6 +299,53 @@ def image_parts(metadata, jpeg):
 
 
 def chat(data, conversation_id):
+    return next(chat_events(data, conversation_id, streaming=False))['result']
+
+
+def stream_completion(client, messages):
+    content = []
+    tool_calls = {}
+    finish_reason = None
+    with client.chat.completions.create(model=config.AI_CHAT_MODEL, messages=messages,
+                                        tools=TOOLS, stream=True) as stream:
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            delta = choice.delta
+            had_visible_content = bool(content and not tool_calls)
+            if delta.content:
+                content.append(delta.content)
+            for part in delta.tool_calls or ():
+                call = tool_calls.setdefault(part.index, {
+                    'type': 'function', 'id': '', 'function': {'name': '', 'arguments': ''},
+                })
+                if part.id:
+                    call['id'] = part.id
+                if part.function:
+                    if part.function.name:
+                        call['function']['name'] = part.function.name
+                    if part.function.arguments:
+                        call['function']['arguments'] += part.function.arguments
+            if choice.finish_reason:
+                finish_reason = choice.finish_reason
+            if tool_calls and had_visible_content:
+                yield {'type': 'reset'}
+            elif delta.content and not tool_calls:
+                yield {'type': 'delta', 'text': delta.content}
+            else:
+                yield {'type': 'progress'}
+    if finish_reason is None:
+        raise BadGateway('AI 回复未完整结束，请重试')
+    calls = [tool_calls[index] for index in sorted(tool_calls)]
+    if calls or finish_reason == 'tool_calls':
+        if (not calls or finish_reason not in ('tool_calls', 'stop')
+                or any(not call['id'] or not call['function']['name'] for call in calls)):
+            raise BadGateway('AI 工具调用未完整结束，请重试')
+    return ChatCompletionMessage(role='assistant', content=''.join(content) or None, tool_calls=calls or None)
+
+
+def chat_events(data, conversation_id, *, streaming=True):
     if not isinstance(data, dict):
         raise BadRequest('请求必须是 JSON 对象')
     history = data.get('messages')
@@ -336,8 +385,11 @@ def chat(data, conversation_id):
         client = OpenAI(api_key=config.AI_CHAT_API_KEY, base_url=config.AI_CHAT_BASE_URL,
                         timeout=90, max_retries=0)
         for _ in range(12):
-            response = client.chat.completions.create(model=config.AI_CHAT_MODEL, messages=messages, tools=TOOLS)
-            message = response.choices[0].message
+            if streaming:
+                message = yield from stream_completion(client, messages)
+            else:
+                response = client.chat.completions.create(model=config.AI_CHAT_MODEL, messages=messages, tools=TOOLS)
+                message = response.choices[0].message
             if not message.tool_calls:
                 if not message.content or not message.content.strip():
                     raise BadGateway('AI 返回了空回复')
@@ -479,7 +531,7 @@ def chat(data, conversation_id):
                                  'Some tools failed or new images were just attached. No proposal from this round was retained or saved. Inspect the images, correct any errors and prepare the complete set again.'})
         else:
             raise BadGateway('AI 工具调用次数过多，请缩小本次操作范围')
-    except OpenAIError as exc:
+    except (OpenAIError, TransportError) as exc:
         current_app.logger.error('[AI chat] upstream failure: %s', type(exc).__name__)
         if image_sources:
             raise BadGateway('AI 图片解读请求失败，请检查聊天模型的图像输入支持及接口配置后重试') from exc
@@ -490,4 +542,4 @@ def chat(data, conversation_id):
             (f"{image['sample_id']} · {IMAGE_COLLECTIONS[image['collection']][0 if lang == 'zh' else 1]} #{image['image_id']} · {image['filename']}"
              if 'sample_id' in image else f"{'聊天图片' if lang == 'zh' else 'Chat image'} #{image['image_id']} · {image['filename']}")
             for image in image_sources)
-    return result
+    yield {'type': 'complete', 'result': result}

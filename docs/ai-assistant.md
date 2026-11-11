@@ -14,7 +14,7 @@ AI_CHAT_BASE_URL = "https://api.openai.com/v1/"
 AI_CHAT_MODEL = "gpt-4o"
 ```
 
-聊天模型必须支持 OpenAI 兼容的 Chat Completions **function/tool calling**；解读图片还需支持 **图像输入**。密钥只在服务端使用。接口失败时显示错误，不切换模型或使用识别服务的配置。
+网页聊天要求模型接口支持 OpenAI 兼容的 Chat Completions 工具调用和流式输出。解读图片还需支持图像输入。密钥只在服务端使用。接口失败时显示当前聊天服务的错误。
 
 使用聊天会把当前会话的近期对话、当前选中的已保存样品及工具读取到的样品字段发送给所配置的模型服务。请求解读图片时，还会发送被读取的图片内容；普通文字查询不自动发送图片。不会发送未保存的表单草稿、非图片附件内容、本地文件路径或确认 / 撤销凭据。
 
@@ -103,7 +103,7 @@ AI_CHAT_MODEL = "gpt-4o"
 | `POST /api/chat/conversations` | 新建空白会话 |
 | `GET /api/chat/conversations/<id>` | 恢复对话和操作卡片状态 |
 | `GET /api/chat/images/<id>` | 读取已保存的聊天图片 JPEG 副本，需登录 |
-| `POST /api/chat` | 提交会话编号、版本及本次用户消息；图片用 multipart 的 `images` 字段，服务端组装上下文并保存回复 |
+| `POST /api/chat` | 提交会话编号、版本及本次用户消息。图片使用 multipart 的 `images` 字段。设置 `Accept: application/x-ndjson` 可接收流式回复 |
 | `POST /api/chat/cancel` | 持久取消待确认方案，不写样品 |
 | `POST /api/chat/confirm` | 需登录；校验签名、会话、有效期和样品版本后保存 |
 | `POST /api/chat/undo` | 需操作者确认；校验撤销凭据及保存后的版本，恢复修改前字段或撤回新建 |

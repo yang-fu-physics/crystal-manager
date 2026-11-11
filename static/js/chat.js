@@ -35,6 +35,7 @@ const chatCopy = {
         undone: '已撤销本次保存，样品列表已刷新。当前表单内容保留，请重新选择样品查看；已删除样品的表单转为未保存草稿。',
         undoUncertain: '撤销状态未确认，请重新读取样品核对。',
         uncertain: '保存状态未确认，请重新读取样品核对后再操作。', failed: '请求失败，请重试。',
+        incomplete: '回复连接提前结束，请重试。',
         full: '对话较长，请开启新对话后继续。', yes: '是', no: '否', reference: '参考',
         statuses: ['失败', '成功', '待定', '生长中', '生长完成'],
     },
@@ -64,6 +65,7 @@ const chatCopy = {
         undone: 'Save undone. The list was refreshed and your form content was preserved. Select the sample again to view saved data; a deleted sample’s form becomes an unsaved draft.',
         undoUncertain: 'Undo status is unknown. Read the sample again to check.',
         uncertain: 'Save status is unknown. Read the sample again before making further changes.', failed: 'Request failed. Please retry.',
+        incomplete: 'The reply connection ended early. Please retry.',
         full: 'This conversation is long. Start a new chat to continue.', yes: 'Yes', no: 'No', reference: 'Ref',
         statuses: ['Fail', 'Success', 'Pending', 'Growing', 'Done'],
     },
@@ -98,6 +100,7 @@ const chatSmallScreen = window.matchMedia('(max-width: 1350px)');
 let chatConversation = null;
 let chatConversationList = [];
 let chatBusy = false;
+let chatStreaming = false;
 let chatPendingImages = [];
 const rememberedChatWidth = localStorage.getItem('crystal-chat-width');
 let chatWidth = rememberedChatWidth === null ? 360 : Number(rememberedChatWidth);
@@ -122,7 +125,7 @@ function updateChatLanguage() {
     updateChatContext();
     renderPendingChatImages();
     renderChatConversations();
-    if (chatConversation) renderChatConversation();
+    if (chatConversation && !chatStreaming) renderChatConversation();
     else if (!chatBusy) showChatWelcome();
 }
 function setChatOpen(open) {
@@ -155,6 +158,9 @@ function finishChatResize(event) {
     setChatWidth(chatWidth, true);
 }
 function scrollChat() { chatMessages.scrollTop = chatMessages.scrollHeight; }
+function chatIsNearBottom() {
+    return chatMessages.scrollHeight - chatMessages.clientHeight - chatMessages.scrollTop < 32;
+}
 function setChatBusy(busy, status = '') {
     chatBusy = busy;
     chatSend.disabled = busy || !chatConversation;
@@ -230,7 +236,7 @@ function addChatImages(files) {
     chatStatus.textContent = '';
     renderPendingChatImages();
 }
-function appendChatMessage(role, text, error = false, images = []) {
+function appendChatMessage(role, text, error = false, images = [], follow = true) {
     const message = chatElement('div', `ai-chat-message ai-chat-${role}${error ? ' ai-chat-error' : ''}`);
     const body = chatElement('div', '', text);
     if (role === 'assistant' && !error) {
@@ -244,7 +250,8 @@ function appendChatMessage(role, text, error = false, images = []) {
         message.append(gallery);
     }
     chatMessages.append(message);
-    scrollChat();
+    if (follow) scrollChat();
+    return body;
 }
 function chatValue(field, value) {
     if (value === null || value === '') return '—';
@@ -259,6 +266,35 @@ async function chatRequest(url, options) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error);
     return data;
+}
+async function readChatReply(options, onEvent) {
+    const response = await fetch('/api/chat', {
+        ...options, headers: {...options.headers, Accept: 'application/x-ndjson'},
+    });
+    if (!response.ok || !response.headers.get('Content-Type')?.startsWith('application/x-ndjson')) {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        return data.conversation;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    try {
+        while (true) {
+            const {value, done} = await reader.read();
+            if (done) throw new Error(chatText('incomplete'));
+            buffer += decoder.decode(value, {stream: true});
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const line of lines) {
+                const event = JSON.parse(line);
+                if (event.type === 'complete') return event.conversation;
+                if (event.type === 'error') throw new Error(event.error);
+                onEvent(event);
+            }
+        }
+    } finally { reader.releaseLock(); }
 }
 function renderChatConversations() {
     chatConversations.replaceChildren();
@@ -420,7 +456,12 @@ async function sendChatMessage(event) {
     const content = draft || chatText('imagePrompt');
     appendChatMessage('user', content, false, chatPendingImages);
     chatInput.value = '';
+    chatStreaming = true;
     setChatBusy(true, chatText('thinking'));
+    chatMessages.setAttribute('aria-busy', 'true');
+    let replyBody = null;
+    let replyText = '';
+    let frame = 0;
     try {
         const payload = {conversation_id: chatConversation.id, revision: chatConversation.revision,
             message: content, sample_id: currentSampleId, lang: currentLang};
@@ -433,14 +474,37 @@ async function sendChatMessage(event) {
         } else {
             options = {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)};
         }
-        const data = await chatRequest('/api/chat', options);
-        setChatConversation(data.conversation);
+        const conversation = await readChatReply(options, event => {
+            if (event.type === 'delta') replyText += event.text;
+            else if (event.type === 'reset') replyText = '';
+            else return;
+            if (frame) return;
+            frame = requestAnimationFrame(() => {
+                frame = 0;
+                const follow = chatIsNearBottom();
+                if (replyText) {
+                    if (!replyBody) replyBody = appendChatMessage('assistant', '', false, [], false);
+                    replyBody.innerHTML = chatMarkdown.render(replyText);
+                } else if (replyBody) {
+                    replyBody.parentElement.remove();
+                    replyBody = null;
+                }
+                if (follow) scrollChat();
+            });
+        });
+        const follow = chatIsNearBottom();
+        const scrollTop = chatMessages.scrollTop;
+        setChatConversation(conversation);
+        if (!follow) chatMessages.scrollTop = scrollTop;
         clearPendingChatImages();
     } catch (error) {
         renderChatConversation();
         chatInput.value = draft;
         appendChatMessage('assistant', error.message, true);
     } finally {
+        cancelAnimationFrame(frame);
+        chatStreaming = false;
+        chatMessages.setAttribute('aria-busy', 'false');
         setChatBusy(false);
         chatInput.focus({preventScroll: true});
     }
