@@ -163,8 +163,12 @@ def transition(message, expected, state, *, undo_token=None, outcome=''):
             (state, undo_token, undo_token, time.time() + 1800, outcome, message['id'], expected))
         if updated.rowcount != 1:
             raise Conflict('此操作已处理或被后续消息替代，请重新加载会话')
+        updated_at = config.get_local_now().isoformat()
         conn.execute('UPDATE chat_conversations SET revision = revision + 1, updated_at = ? WHERE id = ?',
-                     (config.get_local_now().isoformat(), message['conversation_id']))
+                     (updated_at, message['conversation_id']))
+        revision = conn.execute('SELECT revision FROM chat_conversations WHERE id = ?',
+                                (message['conversation_id'],)).fetchone()['revision']
         conn.commit()
+        return {'revision': revision, 'updated_at': updated_at}
     finally:
         conn.close()

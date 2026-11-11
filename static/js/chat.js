@@ -1,4 +1,13 @@
-/* AI text is rendered as plain text. Only a signed proposal can be confirmed. */
+/* Model replies are Markdown. Only a signed proposal can be confirmed. */
+const chatMarkdown = window.markdownit({html: false, breaks: true});
+chatMarkdown.renderer.rules.image = (tokens, index, options, env, renderer) =>
+    chatMarkdown.utils.escapeHtml(renderer.renderInlineAsText(tokens[index].children, options, env));
+chatMarkdown.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
+    tokens[index].attrSet('target', '_blank');
+    tokens[index].attrSet('rel', 'noopener noreferrer');
+    return renderer.renderToken(tokens, index, options);
+};
+
 const chatCopy = {
     zh: {
         title: 'AI 样品助手', close: '收起助手', history: '聊天记录',
@@ -8,7 +17,8 @@ const chatCopy = {
         reset: '新建会话', sessions: '历史会话（已登录设备共享）', refresh: '刷新会话',
         loading: '正在加载会话…', expired: '方案已过期，请重新提出要求。',
         undoExpired: '已保存，撤销期限已过。', processing: '操作处理中；若结果未确认，请重新加载并核对样品。',
-        send: '发送', attach: '添加图片', removeImage: '移除图片', imagePrompt: '请解读这些图片。',
+        send: '发送', stop: '停止', stopped: '已停止生成，草稿已恢复。',
+        attach: '添加图片', removeImage: '移除图片', imagePrompt: '请解读这些图片。',
         imageHint: '可粘贴图片；最多 10 张，每张 20 MiB，请求总计 100 MiB。图片随会话保存，不会自动加入样品附件。',
         imageLimit: '每次最多添加 10 张图片。', imageSize: '每张图片不能超过 20 MiB。',
         imageType: '支持 PNG、JPG、WebP、GIF、BMP、TIF 和 TIFF 图片。',
@@ -26,6 +36,7 @@ const chatCopy = {
         undone: '已撤销本次保存，样品列表已刷新。当前表单内容保留，请重新选择样品查看；已删除样品的表单转为未保存草稿。',
         undoUncertain: '撤销状态未确认，请重新读取样品核对。',
         uncertain: '保存状态未确认，请重新读取样品核对后再操作。', failed: '请求失败，请重试。',
+        incomplete: '回复连接提前结束，请重试。',
         full: '对话较长，请开启新对话后继续。', yes: '是', no: '否', reference: '参考',
         statuses: ['失败', '成功', '待定', '生长中', '生长完成'],
     },
@@ -37,7 +48,8 @@ const chatCopy = {
         reset: 'New conversation', sessions: 'History (shared by signed-in devices)', refresh: 'Refresh conversations',
         loading: 'Loading conversation…', expired: 'Proposal expired. Describe your request again.',
         undoExpired: 'Saved. The undo period has expired.', processing: 'Operation processing. Reload and check the sample if the result is unknown.',
-        send: 'Send', attach: 'Add images', removeImage: 'Remove image', imagePrompt: 'Please interpret these images.',
+        send: 'Send', stop: 'Stop', stopped: 'Generation stopped. Your draft was restored.',
+        attach: 'Add images', removeImage: 'Remove image', imagePrompt: 'Please interpret these images.',
         imageHint: 'Paste images: up to 10, 20 MiB each, 100 MiB per request. Images stay in this chat; they are not automatically added to sample attachments.',
         imageLimit: 'Attach up to 10 images per message.', imageSize: 'Each image must be 20 MiB or smaller.',
         imageType: 'Supported images: PNG, JPG, WebP, GIF, BMP, TIF and TIFF.',
@@ -55,6 +67,7 @@ const chatCopy = {
         undone: 'Save undone. The list was refreshed and your form content was preserved. Select the sample again to view saved data; a deleted sample’s form becomes an unsaved draft.',
         undoUncertain: 'Undo status is unknown. Read the sample again to check.',
         uncertain: 'Save status is unknown. Read the sample again before making further changes.', failed: 'Request failed. Please retry.',
+        incomplete: 'The reply connection ended early. Please retry.',
         full: 'This conversation is long. Start a new chat to continue.', yes: 'Yes', no: 'No', reference: 'Ref',
         statuses: ['Fail', 'Success', 'Pending', 'Growing', 'Done'],
     },
@@ -78,6 +91,7 @@ const chatBackdrop = document.getElementById('aiChatBackdrop');
 const chatMessages = document.getElementById('aiChatMessages');
 const chatInput = document.getElementById('aiChatInput');
 const chatSend = document.getElementById('aiChatSend');
+const chatStop = document.getElementById('aiChatStop');
 const chatReset = document.getElementById('aiChatReset');
 const chatAttach = document.getElementById('aiChatAttach');
 const chatImageInput = document.getElementById('aiChatImageInput');
@@ -89,6 +103,7 @@ const chatSmallScreen = window.matchMedia('(max-width: 1350px)');
 let chatConversation = null;
 let chatConversationList = [];
 let chatBusy = false;
+let chatReplyController = null;
 let chatPendingImages = [];
 const rememberedChatWidth = localStorage.getItem('crystal-chat-width');
 let chatWidth = rememberedChatWidth === null ? 360 : Number(rememberedChatWidth);
@@ -113,7 +128,7 @@ function updateChatLanguage() {
     updateChatContext();
     renderPendingChatImages();
     renderChatConversations();
-    if (chatConversation) renderChatConversation();
+    if (chatConversation && !chatReplyController) renderChatConversation();
     else if (!chatBusy) showChatWelcome();
 }
 function setChatOpen(open) {
@@ -146,9 +161,14 @@ function finishChatResize(event) {
     setChatWidth(chatWidth, true);
 }
 function scrollChat() { chatMessages.scrollTop = chatMessages.scrollHeight; }
+function chatIsNearBottom() {
+    return chatMessages.scrollHeight - chatMessages.clientHeight - chatMessages.scrollTop < 32;
+}
 function setChatBusy(busy, status = '') {
     chatBusy = busy;
     chatSend.disabled = busy || !chatConversation;
+    chatSend.hidden = Boolean(chatReplyController);
+    chatStop.hidden = chatStop.disabled = !chatReplyController;
     chatReset.disabled = busy;
     chatConversations.disabled = busy;
     chatRefresh.disabled = busy;
@@ -221,17 +241,22 @@ function addChatImages(files) {
     chatStatus.textContent = '';
     renderPendingChatImages();
 }
-function appendChatMessage(role, text, error = false, images = []) {
+function appendChatMessage(role, text, error = false, images = [], follow = true) {
     const message = chatElement('div', `ai-chat-message ai-chat-${role}${error ? ' ai-chat-error' : ''}`);
-    message.append(chatElement('small', '', chatText(role === 'user' ? 'user' : 'assistant')),
-        chatElement('div', '', text));
+    const body = chatElement('div', '', text);
+    if (role === 'assistant' && !error) {
+        body.className = 'ai-chat-markdown';
+        body.innerHTML = chatMarkdown.render(text);
+    }
+    message.append(chatElement('small', '', chatText(role === 'user' ? 'user' : 'assistant')), body);
     if (images.length) {
         const gallery = chatElement('div', 'ai-chat-message-images');
         images.forEach(image => gallery.append(chatImagePreview(image)));
         message.append(gallery);
     }
     chatMessages.append(message);
-    scrollChat();
+    if (follow) scrollChat();
+    return body;
 }
 function chatValue(field, value) {
     if (value === null || value === '') return '—';
@@ -247,6 +272,35 @@ async function chatRequest(url, options) {
     if (!response.ok) throw new Error(data.error);
     return data;
 }
+async function readChatReply(options, onEvent) {
+    const response = await fetch('/api/chat', {
+        ...options, headers: {...options.headers, Accept: 'application/x-ndjson'},
+    });
+    if (!response.ok || !response.headers.get('Content-Type')?.startsWith('application/x-ndjson')) {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        return data.conversation;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    try {
+        while (true) {
+            const {value, done} = await reader.read();
+            if (done) throw new Error(chatText('incomplete'));
+            buffer += decoder.decode(value, {stream: true});
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const line of lines) {
+                const event = JSON.parse(line);
+                if (event.type === 'complete') return event.conversation;
+                if (event.type === 'error') throw new Error(event.error);
+                onEvent(event);
+            }
+        }
+    } finally { reader.releaseLock(); }
+}
 function renderChatConversations() {
     chatConversations.replaceChildren();
     chatConversationList.forEach(conversation => {
@@ -261,14 +315,14 @@ async function loadChatConversations() {
     chatConversationList = await chatRequest('/api/chat/conversations');
     renderChatConversations();
 }
-function setChatConversation(conversation) {
+function setChatConversation(conversation, render = true) {
     chatConversation = conversation;
     const {messages, ...summary} = conversation;
     chatConversationList = [summary, ...chatConversationList.filter(item => item.id !== conversation.id)]
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
     localStorage.setItem('crystal-chat-conversation', conversation.id);
     renderChatConversations();
-    renderChatConversation();
+    if (render) renderChatConversation();
 }
 async function loadChatConversation(id) {
     setChatConversation(await chatRequest('/api/chat/conversations/' + encodeURIComponent(id)));
@@ -278,11 +332,26 @@ function renderChatConversation() {
     if (!chatConversation.messages.length) { showChatWelcome(); return; }
     chatConversation.messages.forEach(message => {
         if (message.content || message.images?.length) appendChatMessage(message.role, message.content, false, message.images);
-        if (message.proposal) showChatProposal(message);
+        if (message.proposal) chatMessages.append(chatProposalCard(message));
     });
     scrollChat();
 }
-function showChatProposal(message) {
+function updateChatProposal(message, state, data) {
+    const version = data.conversation_version;
+    // Claiming and completing this card each increments the revision once.
+    // Leave our revision stale if another device changed the conversation too.
+    if (version.revision === chatConversation.revision + 2) {
+        setChatConversation({...chatConversation, ...version}, false);
+    }
+    Object.assign(message, {
+        state, can_confirm: false, can_undo: state === 'saved', outcome: data.todo_msg,
+    });
+    if (state === 'saved') message.undo_token = data.undo_token;
+    const scrollTop = chatMessages.scrollTop;
+    chatMessages.querySelector(`[data-message-id="${message.id}"]`).replaceWith(chatProposalCard(message));
+    chatMessages.scrollTop = scrollTop;
+}
+function chatProposalCard(message) {
     const proposal = message.proposal;
     const card = chatElement('section', 'ai-chat-proposal');
     card.dataset.messageId = message.id;
@@ -318,7 +387,6 @@ function showChatProposal(message) {
         (message.outcome ? '\n' + message.outcome : ''));
     actions.append(confirm, cancel, undo, keep);
     card.append(actions, outcome);
-    chatMessages.append(card);
     cancel.addEventListener('click', async () => {
         if (chatBusy) return;
         setChatBusy(true);
@@ -337,15 +405,15 @@ function showChatProposal(message) {
         confirm.disabled = cancel.disabled = true;
         setChatBusy(true, chatText('saving'));
         try {
-            await chatRequest('/api/chat/confirm', {
+            const data = await chatRequest('/api/chat/confirm', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({token: proposal.token}),
             });
-            await loadChatConversation(chatConversation.id);
+            updateChatProposal(message, 'saved', data);
             await loadSampleList(searchInput.value);
         } catch (error) {
             outcome.textContent = chatText('uncertain') + '\n' + error.message;
-        } finally { setChatBusy(false); scrollChat(); }
+        } finally { setChatBusy(false); }
     });
     keep.addEventListener('click', () => {
         if (chatBusy) return;
@@ -361,7 +429,6 @@ function showChatProposal(message) {
             keep.hidden = false;
             undo.textContent = chatText('confirmUndo');
             outcome.textContent = chatText(proposal.operation === 'create' ? 'undoCreate' : 'undoUpdate') + proposal.sample_id;
-            scrollChat();
             return;
         }
         undo.disabled = keep.disabled = true;
@@ -379,12 +446,13 @@ function showChatProposal(message) {
                 showForm(t('form.newSampleTitle'), false, false);
                 updateChatContext();
             }
-            await loadChatConversation(chatConversation.id);
+            updateChatProposal(message, 'undone', data);
             await loadSampleList(searchInput.value);
         } catch (error) {
             outcome.textContent = chatText('undoUncertain') + '\n' + error.message;
-        } finally { setChatBusy(false); scrollChat(); }
+        } finally { setChatBusy(false); }
     });
+    return card;
 }
 async function sendChatMessage(event) {
     event.preventDefault();
@@ -393,7 +461,14 @@ async function sendChatMessage(event) {
     const content = draft || chatText('imagePrompt');
     appendChatMessage('user', content, false, chatPendingImages);
     chatInput.value = '';
+    const controller = new AbortController();
+    chatReplyController = controller;
     setChatBusy(true, chatText('thinking'));
+    chatMessages.setAttribute('aria-busy', 'true');
+    let replyBody = null;
+    let replyText = '';
+    let frame = 0;
+    let status = '';
     try {
         const payload = {conversation_id: chatConversation.id, revision: chatConversation.revision,
             message: content, sample_id: currentSampleId, lang: currentLang};
@@ -406,15 +481,45 @@ async function sendChatMessage(event) {
         } else {
             options = {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)};
         }
-        const data = await chatRequest('/api/chat', options);
-        setChatConversation(data.conversation);
+        const conversation = await readChatReply({...options, signal: controller.signal}, event => {
+            if (event.type === 'delta') replyText += event.text;
+            else if (event.type === 'reset') replyText = '';
+            else return;
+            if (frame) return;
+            frame = requestAnimationFrame(() => {
+                frame = 0;
+                const follow = chatIsNearBottom();
+                if (replyText) {
+                    if (!replyBody) replyBody = appendChatMessage('assistant', '', false, [], false);
+                    replyBody.innerHTML = chatMarkdown.render(replyText);
+                } else if (replyBody) {
+                    replyBody.parentElement.remove();
+                    replyBody = null;
+                }
+                if (follow) scrollChat();
+            });
+        });
+        const follow = chatIsNearBottom();
+        const scrollTop = chatMessages.scrollTop;
+        setChatConversation(conversation);
+        if (!follow) chatMessages.scrollTop = scrollTop;
         clearPendingChatImages();
     } catch (error) {
+        const scrollTop = chatMessages.scrollTop;
         renderChatConversation();
         chatInput.value = draft;
-        appendChatMessage('assistant', error.message, true);
+        if (controller.signal.aborted) {
+            chatMessages.scrollTop = scrollTop;
+            status = chatText('stopped');
+        } else {
+            controller.abort();
+            appendChatMessage('assistant', error.message, true);
+        }
     } finally {
-        setChatBusy(false);
+        cancelAnimationFrame(frame);
+        chatReplyController = null;
+        chatMessages.setAttribute('aria-busy', 'false');
+        setChatBusy(false, status);
         chatInput.focus({preventScroll: true});
     }
 }
@@ -459,6 +564,10 @@ chatLauncher.addEventListener('click', () => setChatOpen(true));
 document.getElementById('aiChatClose').addEventListener('click', () => setChatOpen(false));
 chatBackdrop.addEventListener('click', () => setChatOpen(false));
 document.getElementById('aiChatForm').addEventListener('submit', sendChatMessage);
+chatStop.addEventListener('click', () => {
+    chatStop.disabled = true;
+    chatReplyController.abort();
+});
 chatInput.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) sendChatMessage(event);
 });
