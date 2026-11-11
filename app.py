@@ -441,8 +441,8 @@ def confirm_sample_chat():
         return response
     result = response.get_json()
     result['undo_token'] = ai_chat.undo_token(current, result, message['conversation_id'])
-    chat_history.transition(message, 'confirming', 'saved', undo_token=result['undo_token'],
-                            outcome=result['todo_msg'])
+    result['conversation_version'] = chat_history.transition(
+        message, 'confirming', 'saved', undo_token=result['undo_token'], outcome=result['todo_msg'])
     result['conversation_id'] = message['conversation_id']
     return jsonify(result), response.status_code
 
@@ -473,7 +473,8 @@ def undo_sample_chat():
         result = response.get_json()
     if receipt['before'] is None or (not receipt['before']['sintering_end'] and current['sintering_end']):
         result['todo_synced'], result['todo_msg'] = todo_integration.remove_sample_todo(receipt['sample_id'], models)
-    chat_history.transition(message, 'undoing', 'undone', outcome=result.get('todo_msg', ''))
+    result['conversation_version'] = chat_history.transition(
+        message, 'undoing', 'undone', outcome=result.get('todo_msg', ''))
     result['conversation_id'] = message['conversation_id']
     return jsonify(result)
 

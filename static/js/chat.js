@@ -261,14 +261,14 @@ async function loadChatConversations() {
     chatConversationList = await chatRequest('/api/chat/conversations');
     renderChatConversations();
 }
-function setChatConversation(conversation) {
+function setChatConversation(conversation, render = true) {
     chatConversation = conversation;
     const {messages, ...summary} = conversation;
     chatConversationList = [summary, ...chatConversationList.filter(item => item.id !== conversation.id)]
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
     localStorage.setItem('crystal-chat-conversation', conversation.id);
     renderChatConversations();
-    renderChatConversation();
+    if (render) renderChatConversation();
 }
 async function loadChatConversation(id) {
     setChatConversation(await chatRequest('/api/chat/conversations/' + encodeURIComponent(id)));
@@ -278,11 +278,26 @@ function renderChatConversation() {
     if (!chatConversation.messages.length) { showChatWelcome(); return; }
     chatConversation.messages.forEach(message => {
         if (message.content || message.images?.length) appendChatMessage(message.role, message.content, false, message.images);
-        if (message.proposal) showChatProposal(message);
+        if (message.proposal) chatMessages.append(chatProposalCard(message));
     });
     scrollChat();
 }
-function showChatProposal(message) {
+function updateChatProposal(message, state, data) {
+    const version = data.conversation_version;
+    // Claiming and completing this card each increments the revision once.
+    // Leave our revision stale if another device changed the conversation too.
+    if (version.revision === chatConversation.revision + 2) {
+        setChatConversation({...chatConversation, ...version}, false);
+    }
+    Object.assign(message, {
+        state, can_confirm: false, can_undo: state === 'saved', outcome: data.todo_msg,
+    });
+    if (state === 'saved') message.undo_token = data.undo_token;
+    const scrollTop = chatMessages.scrollTop;
+    chatMessages.querySelector(`[data-message-id="${message.id}"]`).replaceWith(chatProposalCard(message));
+    chatMessages.scrollTop = scrollTop;
+}
+function chatProposalCard(message) {
     const proposal = message.proposal;
     const card = chatElement('section', 'ai-chat-proposal');
     card.dataset.messageId = message.id;
@@ -318,7 +333,6 @@ function showChatProposal(message) {
         (message.outcome ? '\n' + message.outcome : ''));
     actions.append(confirm, cancel, undo, keep);
     card.append(actions, outcome);
-    chatMessages.append(card);
     cancel.addEventListener('click', async () => {
         if (chatBusy) return;
         setChatBusy(true);
@@ -337,15 +351,15 @@ function showChatProposal(message) {
         confirm.disabled = cancel.disabled = true;
         setChatBusy(true, chatText('saving'));
         try {
-            await chatRequest('/api/chat/confirm', {
+            const data = await chatRequest('/api/chat/confirm', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({token: proposal.token}),
             });
-            await loadChatConversation(chatConversation.id);
+            updateChatProposal(message, 'saved', data);
             await loadSampleList(searchInput.value);
         } catch (error) {
             outcome.textContent = chatText('uncertain') + '\n' + error.message;
-        } finally { setChatBusy(false); scrollChat(); }
+        } finally { setChatBusy(false); }
     });
     keep.addEventListener('click', () => {
         if (chatBusy) return;
@@ -361,7 +375,6 @@ function showChatProposal(message) {
             keep.hidden = false;
             undo.textContent = chatText('confirmUndo');
             outcome.textContent = chatText(proposal.operation === 'create' ? 'undoCreate' : 'undoUpdate') + proposal.sample_id;
-            scrollChat();
             return;
         }
         undo.disabled = keep.disabled = true;
@@ -379,12 +392,13 @@ function showChatProposal(message) {
                 showForm(t('form.newSampleTitle'), false, false);
                 updateChatContext();
             }
-            await loadChatConversation(chatConversation.id);
+            updateChatProposal(message, 'undone', data);
             await loadSampleList(searchInput.value);
         } catch (error) {
             outcome.textContent = chatText('undoUncertain') + '\n' + error.message;
-        } finally { setChatBusy(false); scrollChat(); }
+        } finally { setChatBusy(false); }
     });
+    return card;
 }
 async function sendChatMessage(event) {
     event.preventDefault();

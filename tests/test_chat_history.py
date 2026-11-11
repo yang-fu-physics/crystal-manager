@@ -62,6 +62,7 @@ def test_save_and_undo_cards_survive_reload_and_replay_cannot_recreate_sample(cl
     saved = client.post('/api/chat/confirm', json={'token': proposal['token']}).get_json()
     conversation_id = saved['conversation_id']
     reloaded = client.get('/api/chat/conversations/' + conversation_id).get_json()
+    assert saved['conversation_version'] == {key: reloaded[key] for key in ('revision', 'updated_at')}
     card = reloaded['messages'][-1]
     assert card['state'] == 'saved'
     assert card['can_confirm'] is False
@@ -73,8 +74,11 @@ def test_save_and_undo_cards_survive_reload_and_replay_cannot_recreate_sample(cl
     with app.test_client() as other:
         with other.session_transaction() as session:
             session['logged_in'] = True
-        assert other.post('/api/chat/undo', json={'token': card['undo_token']}).status_code == 200
-    restored = client.get('/api/chat/conversations/' + conversation_id).get_json()['messages'][-1]
+        undone = other.post('/api/chat/undo', json={'token': card['undo_token']})
+        assert undone.status_code == 200
+    updated = client.get('/api/chat/conversations/' + conversation_id).get_json()
+    assert undone.get_json()['conversation_version'] == {key: updated[key] for key in ('revision', 'updated_at')}
+    restored = updated['messages'][-1]
     assert restored['state'] == 'undone'
     assert restored['can_undo'] is False
     assert models.get_sample('TEST-001') is None
