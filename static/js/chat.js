@@ -17,7 +17,8 @@ const chatCopy = {
         reset: '新建会话', sessions: '历史会话（已登录设备共享）', refresh: '刷新会话',
         loading: '正在加载会话…', expired: '方案已过期，请重新提出要求。',
         undoExpired: '已保存，撤销期限已过。', processing: '操作处理中；若结果未确认，请重新加载并核对样品。',
-        send: '发送', attach: '添加图片', removeImage: '移除图片', imagePrompt: '请解读这些图片。',
+        send: '发送', stop: '停止', stopped: '已停止生成，草稿已恢复。',
+        attach: '添加图片', removeImage: '移除图片', imagePrompt: '请解读这些图片。',
         imageHint: '可粘贴图片；最多 10 张，每张 20 MiB，请求总计 100 MiB。图片随会话保存，不会自动加入样品附件。',
         imageLimit: '每次最多添加 10 张图片。', imageSize: '每张图片不能超过 20 MiB。',
         imageType: '支持 PNG、JPG、WebP、GIF、BMP、TIF 和 TIFF 图片。',
@@ -47,7 +48,8 @@ const chatCopy = {
         reset: 'New conversation', sessions: 'History (shared by signed-in devices)', refresh: 'Refresh conversations',
         loading: 'Loading conversation…', expired: 'Proposal expired. Describe your request again.',
         undoExpired: 'Saved. The undo period has expired.', processing: 'Operation processing. Reload and check the sample if the result is unknown.',
-        send: 'Send', attach: 'Add images', removeImage: 'Remove image', imagePrompt: 'Please interpret these images.',
+        send: 'Send', stop: 'Stop', stopped: 'Generation stopped. Your draft was restored.',
+        attach: 'Add images', removeImage: 'Remove image', imagePrompt: 'Please interpret these images.',
         imageHint: 'Paste images: up to 10, 20 MiB each, 100 MiB per request. Images stay in this chat; they are not automatically added to sample attachments.',
         imageLimit: 'Attach up to 10 images per message.', imageSize: 'Each image must be 20 MiB or smaller.',
         imageType: 'Supported images: PNG, JPG, WebP, GIF, BMP, TIF and TIFF.',
@@ -89,6 +91,7 @@ const chatBackdrop = document.getElementById('aiChatBackdrop');
 const chatMessages = document.getElementById('aiChatMessages');
 const chatInput = document.getElementById('aiChatInput');
 const chatSend = document.getElementById('aiChatSend');
+const chatStop = document.getElementById('aiChatStop');
 const chatReset = document.getElementById('aiChatReset');
 const chatAttach = document.getElementById('aiChatAttach');
 const chatImageInput = document.getElementById('aiChatImageInput');
@@ -100,7 +103,7 @@ const chatSmallScreen = window.matchMedia('(max-width: 1350px)');
 let chatConversation = null;
 let chatConversationList = [];
 let chatBusy = false;
-let chatStreaming = false;
+let chatReplyController = null;
 let chatPendingImages = [];
 const rememberedChatWidth = localStorage.getItem('crystal-chat-width');
 let chatWidth = rememberedChatWidth === null ? 360 : Number(rememberedChatWidth);
@@ -125,7 +128,7 @@ function updateChatLanguage() {
     updateChatContext();
     renderPendingChatImages();
     renderChatConversations();
-    if (chatConversation && !chatStreaming) renderChatConversation();
+    if (chatConversation && !chatReplyController) renderChatConversation();
     else if (!chatBusy) showChatWelcome();
 }
 function setChatOpen(open) {
@@ -164,6 +167,8 @@ function chatIsNearBottom() {
 function setChatBusy(busy, status = '') {
     chatBusy = busy;
     chatSend.disabled = busy || !chatConversation;
+    chatSend.hidden = Boolean(chatReplyController);
+    chatStop.hidden = chatStop.disabled = !chatReplyController;
     chatReset.disabled = busy;
     chatConversations.disabled = busy;
     chatRefresh.disabled = busy;
@@ -456,12 +461,14 @@ async function sendChatMessage(event) {
     const content = draft || chatText('imagePrompt');
     appendChatMessage('user', content, false, chatPendingImages);
     chatInput.value = '';
-    chatStreaming = true;
+    const controller = new AbortController();
+    chatReplyController = controller;
     setChatBusy(true, chatText('thinking'));
     chatMessages.setAttribute('aria-busy', 'true');
     let replyBody = null;
     let replyText = '';
     let frame = 0;
+    let status = '';
     try {
         const payload = {conversation_id: chatConversation.id, revision: chatConversation.revision,
             message: content, sample_id: currentSampleId, lang: currentLang};
@@ -474,7 +481,7 @@ async function sendChatMessage(event) {
         } else {
             options = {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)};
         }
-        const conversation = await readChatReply(options, event => {
+        const conversation = await readChatReply({...options, signal: controller.signal}, event => {
             if (event.type === 'delta') replyText += event.text;
             else if (event.type === 'reset') replyText = '';
             else return;
@@ -498,14 +505,21 @@ async function sendChatMessage(event) {
         if (!follow) chatMessages.scrollTop = scrollTop;
         clearPendingChatImages();
     } catch (error) {
+        const scrollTop = chatMessages.scrollTop;
         renderChatConversation();
         chatInput.value = draft;
-        appendChatMessage('assistant', error.message, true);
+        if (controller.signal.aborted) {
+            chatMessages.scrollTop = scrollTop;
+            status = chatText('stopped');
+        } else {
+            controller.abort();
+            appendChatMessage('assistant', error.message, true);
+        }
     } finally {
         cancelAnimationFrame(frame);
-        chatStreaming = false;
+        chatReplyController = null;
         chatMessages.setAttribute('aria-busy', 'false');
-        setChatBusy(false);
+        setChatBusy(false, status);
         chatInput.focus({preventScroll: true});
     }
 }
@@ -550,6 +564,10 @@ chatLauncher.addEventListener('click', () => setChatOpen(true));
 document.getElementById('aiChatClose').addEventListener('click', () => setChatOpen(false));
 chatBackdrop.addEventListener('click', () => setChatOpen(false));
 document.getElementById('aiChatForm').addEventListener('submit', sendChatMessage);
+chatStop.addEventListener('click', () => {
+    chatStop.disabled = true;
+    chatReplyController.abort();
+});
 chatInput.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) sendChatMessage(event);
 });

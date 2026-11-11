@@ -6,6 +6,7 @@ from openai import OpenAI
 import ai_chat
 import chat_history
 import models
+from test_chat_uploads import image_file, uploaded_images
 
 
 class ModelStream(httpx.SyncByteStream):
@@ -113,13 +114,18 @@ def test_stream_assembles_tool_arguments_and_keeps_confirmation(client, monkeypa
 
 def test_closing_stream_releases_upstream_and_discards_unfinished_turn(client, monkeypatch):
     upstream = ModelStream(({'content': '片段'}, None), ({'content': '未读取'}, None), ({}, 'stop'))
-    model_streams(monkeypatch, upstream)
-    conversation_id, response = start_reply(client)
+    requests = model_streams(monkeypatch, upstream)
+    conversation_id = client.post('/api/chat/conversations').get_json()['id']
+    response = client.post('/api/chat', data={
+        'conversation_id': conversation_id, 'revision': '0', 'message': '请看图片', 'images': image_file(),
+    }, headers={'Accept': 'application/x-ndjson'}, buffered=False)
     events = iter(response.response)
     next(events)
     assert json.loads(next(events)) == {'type': 'delta', 'text': '片段'}
     response.close()
     assert upstream.closed
+    assert any(part['type'] == 'image_url' for part in requests[0]['messages'][-1]['content'])
+    assert uploaded_images() == []
     conversation = chat_history.get_conversation(conversation_id)
     assert conversation['revision'] == 0
     assert conversation['messages'] == []
