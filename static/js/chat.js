@@ -1,5 +1,13 @@
 /* Model replies are Markdown. Only a signed proposal can be confirmed. */
-const chatMarkdown = window.markdownit({html: false, breaks: true});
+const chatMarkdown = window.markdownit({html: false, breaks: true})
+    .use(window.markdownitDollarmath.dollarmathPlugin, {
+        allow_space: false,
+        allow_digits: false,
+        allow_labels: false,
+        renderer: (content, {displayMode}) => window.katex.renderToString(content, {
+            displayMode, output: 'mathml', throwOnError: false, trust: false,
+        }),
+    });
 chatMarkdown.renderer.rules.image = (tokens, index, options, env, renderer) =>
     chatMarkdown.utils.escapeHtml(renderer.renderInlineAsText(tokens[index].children, options, env));
 chatMarkdown.renderer.rules.link_open = (tokens, index, options, env, renderer) => {

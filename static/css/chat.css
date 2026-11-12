@@ -30,6 +30,7 @@
 .ai-chat-markdown :is(ul, ol) { padding-inline-start: 1.5em; }
 .ai-chat-markdown blockquote { border-inline-start: 3px solid var(--border-hover); padding-inline-start: .7em; color: var(--text-secondary); }
 .ai-chat-markdown pre { overflow-x: auto; white-space: pre; overflow-wrap: normal; }
+.ai-chat-markdown div.math { overflow-x: auto; }
 .ai-chat-markdown table { display: block; overflow-x: auto; border-collapse: collapse; }
 .ai-chat-markdown :is(th, td) { border: 1px solid var(--border-color); padding: .25em .5em; }
 .ai-chat-welcome { color: var(--text-secondary); font-size: 14px; margin: 8px 0 18px; }
